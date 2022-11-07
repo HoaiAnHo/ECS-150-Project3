@@ -12,9 +12,7 @@
 #define FD_MAX 32;
 
 /* Global Variables */
-struct disk cur_disk; // global var for fs_info
-int vd; // virtual disk file descriptor
-int mounted = 0; // int check to see if vd is mounted
+struct disk_blocks cur_disk; // global var for fs_info
 
 /* TODO: Phase 1 - VOLUME MOUNTING */
 
@@ -48,7 +46,7 @@ struct root_entry{
 	int8_t padding[10];
 };
 
-struct disk{
+struct disk_blocks{
 	struct super_block super;
 	struct fat_blocks * fat_front; //starting block
 	struct fat_blocks * fat_back; //starting block
@@ -60,21 +58,24 @@ int fs_mount(const char *diskname)
 	if (!diskname) return -1;
 
 	/* Open Virtual Disk*/
-	vd = open(diskname, O_RDWR); // added "#include <unistd.h>" to use O_RDWR
-	if (!vd) return -1;
-	mounted = 1;
+	struct disk virtual_disk;
+	// vd = open(diskname, O_RDWR); // added "#include <unistd.h>" to use O_RDWR
+	int disk_check = block_disk_open(diskname);
+	if (!disk_check) return -1;
 
 	/* Read the metadata (superblock, fat, root directory)*/
 	// 1) Superblock - 1st 8 bytes
 	struct super_block obj;
-	read(vd, &obj, sizeof(obj));
+	int8_t buf[4096];
+	block_read(0, &buf);
+
 	obj.signature = 0; // signature must be equal to "ECS150FS"
 	obj.total_blks = 0;
 	obj.root_dir_idx = 0;
 	obj.data_blk_idx = 0;
 	obj.fat_blks = 0;
 	cur_disk.super = obj;
-	// write(vd, &obj, sizeof(obj));
+	// block_write(0, &buf);
 
 
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
@@ -116,7 +117,7 @@ int fs_mount(const char *diskname)
 	struct root_entry r_blocks[128];
 	for (int i = 0; i < 128, i++){ // for every entry in root directory
 		struct root_entry root_obj;
-		read(vd, &root_obj, sizeof(root_obj));
+		// read(vd, &root_obj, sizeof(root_obj));
 		root_obj.filename = 0;
 		root_obj.file_size = 0;
 		root_obj.first_data_idx = 0;
@@ -131,15 +132,14 @@ int fs_mount(const char *diskname)
 int fs_umount(void)
 {
 	/* Close Virtual Disk */
-	if (mounted == 0) return -1;
-	close(vd);
-	mounted = 0;
+	if (!block_disk_count()) return -1;
+	if (!block_disk_close()) return -1;
 	return 0;
 }
 
 int fs_info(void)
 {
-	if (mounted == 0) return -1;
+	if (!block_disk_count()) return -1;
 	/* Show Info about Volume */
 	// there should be a global class that contains the current vd info
 	// we would then read from it if availible, and print the info
