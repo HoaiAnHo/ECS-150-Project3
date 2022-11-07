@@ -107,7 +107,7 @@ int fs_mount(const char *diskname)
 			struct fat_blocks * copy_back = cur_disk->fat_back;
 			cur_block->prev = copy_back;
 			cur_block->next = NULL;
-			queue->back = &cur_block;
+			cur_disk->fat_back = &cur_block;
 			copy_back->next = cur_disk->fat_back;
 		}
 	}
