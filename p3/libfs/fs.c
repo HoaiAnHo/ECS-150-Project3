@@ -29,18 +29,14 @@ struct super_block{
 	int8_t padding[4079]; // 4079 bytes
 }; 
 
-// linked list structure for FAT entries
+// linked list structure for FAT blocks
 struct fat_blocks{
-	struct fat_entry *front;
-	struct fat_entry *back;
+	struct fat_blocks *prev;
+	struct fat_blocks *next;
+	int16_t entries[2048]; // 2 bytes
 };
 
-// singular fat block entry
-struct fat_entry{
-	int16_t entry; // 2 bytes
-};
-
-// array structure for FAT entries
+// array structure for root entries
 struct root_blocks{
 	struct root_entry entries[128];
 };
@@ -54,7 +50,8 @@ struct root_entry{
 
 struct disk{
 	struct super_block super;
-	struct fat_blocks fat;
+	struct fat_blocks * fat_front; //starting block
+	struct fat_blocks * fat_back; //starting block
 	struct root_blocks root;
 };
 
@@ -81,15 +78,39 @@ int fs_mount(const char *diskname)
 
 
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
-	// int fat_entry;
-	// for (every FAT block){
-	// 	if (corresponding data block is availible) fat_entry = 0;
-	// 		else if (last data block of a file) fat_entry = FAT_EOC;
-	// 		else fat_entry = index of next data block;
-	// 	for (every blank entry in FAT block){
-	// 		blank entry = fat_entry;
-	// 	}
-	// }
+	for (int8_t f = 0; f < cur_disk.super.fat_blks; f++){
+		struct fat_blocks cur_block;
+
+		// what will each entry in the current fat block have
+		int16_t fat_entry;
+		if (f < cur_disk.super.total_data_blks) fat_entry = 0;
+		else if (f == cur_disk.super.total_data_blks - 1) fat_entry = FAT_EOC;
+		else fat_entry = f + 1;
+
+		// assign value to each fat entry in the current block
+		for (int t = 0; t < 2048; t++){
+			cur_block.entries[t] = fat_entry;
+		}
+
+		// assign links
+		if (f == 0){
+			cur_block->prev = NULL; // if first FAT block
+			cur_block->next = NULL;
+			cur_disk->fat_front = &cur_block;
+			cur_disk->fat_back = NULL;
+		} 
+		else if (f == cur_disk.super.total_data_blks - 1){
+			cur_block->next = NULL; // if last FAT block
+			cur_disk->fat_back = &cur_block;
+		} 
+		else{
+			struct fat_blocks * copy_back = cur_disk->fat_back;
+			cur_block->prev = copy_back;
+			cur_block->next = NULL;
+			queue->back = &cur_block;
+			copy_back->next = cur_disk->fat_back;
+		}
+	}
 
 	// 3) Root directory - 1 block, 32-byte entry per file
 	struct root_entry r_blocks[128];
@@ -112,6 +133,7 @@ int fs_umount(void)
 	/* Close Virtual Disk */
 	if (mounted == 0) return -1;
 	close(vd);
+	mounted = 0;
 	return 0;
 }
 
