@@ -17,7 +17,7 @@ deps := $(patsubst %.o,%.d,$(objs))
 	@echo "CC $@"
 	$(Q)$(CC) $(CFLAGS) -c -o $@ $<
 
-libuthread.a: $(objs)
+libfs.a: $(objs)
 	ar -rcs $@ $(objs)
 
 clean:
