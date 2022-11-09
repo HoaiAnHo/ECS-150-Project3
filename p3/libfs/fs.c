@@ -10,6 +10,7 @@
 
 #define ROOT_DIR_MAX 128;
 #define FD_MAX 32;
+#define FAT_EOC 0xffff;
 
 /* Global Variables */
 struct disk_blocks cur_disk; // global var for fs_info
@@ -34,16 +35,16 @@ struct fat_blocks{
 	int16_t entries[2048]; // 2 bytes
 };
 
-// array structure for root entries
-struct root_blocks{
-	struct root_entry entries[128];
-};
-
 struct root_entry{
 	int8_t filename[16];
 	int64_t file_size;
 	int16_t first_data_idx;
 	int8_t padding[10];
+};
+
+// array structure for root entries
+struct root_blocks{
+	struct root_entry entries[128];
 };
 
 struct disk_blocks{
@@ -76,9 +77,18 @@ int fs_mount(const char *diskname)
 
 		// what will each entry in the current fat block have
 		int16_t fat_entry;
-		if (f < cur_disk.super.total_data_blks) fat_entry = 0;
-		else if (f == cur_disk.super.total_data_blks - 1) fat_entry = FAT_EOC;
-		else fat_entry = f + 1;
+		if (f < cur_disk.super.total_data_blks)
+		{
+			fat_entry = 0;
+		}
+		else if (f == cur_disk.super.total_data_blks - 1)
+		{
+			fat_entry = FAT_EOC;
+		}
+		else 
+		{
+			fat_entry = f + 1;
+		}
 
 		// assign value to each fat entry in the current block
 		for (int t = 0; t < 2048; t++){
@@ -87,21 +97,21 @@ int fs_mount(const char *diskname)
 
 		// assign links
 		if (f == 0){
-			cur_block->prev = NULL; // if first FAT block
-			cur_block->next = NULL;
-			cur_disk->fat_front = &cur_block;
-			cur_disk->fat_back = NULL;
+			cur_block.prev = NULL; // if first FAT block
+			cur_block.next = NULL;
+			cur_disk.fat_front = &cur_block;
+			cur_disk.fat_back = NULL;
 		} 
 		else if (f == cur_disk.super.total_data_blks - 1){
-			cur_block->next = NULL; // if last FAT block
-			cur_disk->fat_back = &cur_block;
+			cur_block.next = NULL; // if last FAT block
+			cur_disk.fat_back = &cur_block;
 		} 
 		else{
-			struct fat_blocks * copy_back = cur_disk->fat_back;
-			cur_block->prev = copy_back;
-			cur_block->next = NULL;
-			cur_disk->fat_back = &cur_block;
-			copy_back->next = cur_disk->fat_back;
+			struct fat_blocks * copy_back = cur_disk.fat_back;
+			cur_block.prev = copy_back;
+			cur_block.next = NULL;
+			cur_disk.fat_back = &cur_block;
+			copy_back->next = cur_disk.fat_back;
 		}
 	}
 
