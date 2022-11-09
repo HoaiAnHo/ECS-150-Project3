@@ -116,7 +116,11 @@ int fs_mount(const char *diskname)
 	}
 
 	// 3) Root directory - 1 block, 32-byte entry per file
-	struct root_entry r_blocks[128];
+	/*struct root_entry r_blocks[128];
+	block_read(cur_disk.super.root_dir_idx, &r_blocks);
+	cur_disk.root = r_blocks; */
+
+	struct root_blocks r_blocks;
 	block_read(cur_disk.super.root_dir_idx, &r_blocks);
 	cur_disk.root = r_blocks;
 
@@ -136,7 +140,7 @@ int fs_info(void)
 	if (!block_disk_count()) return -1;
 	/* Show Info about Volume */
 	// there should be a global class that contains the current vd info
-	// we would then read from it if availible, and print the info
+	// we would then read from it if available, and print the info
 
 	return 0;
 }
