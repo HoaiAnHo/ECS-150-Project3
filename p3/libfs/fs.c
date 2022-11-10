@@ -56,21 +56,45 @@ struct disk_blocks{
 
 int fs_mount(const char *diskname)
 {
-	if (!diskname) return -1;
-
+	printf("fs_mount was called \n");
+	if (!diskname) 
+	{
+		printf("Disk name was NULL\n");
+		return -1;
+	}
 	/* Open Virtual Disk*/
 	// added "#include <unistd.h>" to use O_RDWR
 	int disk_check = block_disk_open(diskname);
-	if (!disk_check) return -1;
+	if (disk_check != 0)
+		{
+			printf("Unsuccessful disk open\n");
+			return -1;
+		}
 
 	/* Read the metadata (superblock, fat, root directory)*/
 	// 1) Superblock - 1st 8 bytes
 	struct super_block obj;
+
+	/*
+	block_read(0, &obj.signature);
+	block_read(0, &obj.total_blks);
+	*/
+
 	block_read(0, &obj);
+
 	cur_disk.super = obj;
 	// block_write(0, &buf);
 
 
+	printf("Signature: %ld \n", obj.signature);
+	printf("Total Blocks: %d \n", obj.total_blks);
+	printf("Root Directory Block index: %d \n", obj.root_dir_idx);
+	printf("Data block root index: %d \n", obj.data_blk_idx);
+	printf("Root Directory Block index: %d \n", obj.root_dir_idx);
+	printf("Amount of Data Blocks: %d \n", obj.total_data_blks);
+	printf("FAT Blocks: %d \n", obj.fat_blks);
+
+	printf("Fat Block Part \n");
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
 	for (int8_t f = 0; f < cur_disk.super.fat_blks; f++){
 		struct fat_blocks cur_block;
@@ -115,6 +139,7 @@ int fs_mount(const char *diskname)
 		}
 	}
 
+	printf("Root Part \n");
 	// 3) Root directory - 1 block, 32-byte entry per file
 	/*struct root_entry r_blocks[128];
 	block_read(cur_disk.super.root_dir_idx, &r_blocks);
