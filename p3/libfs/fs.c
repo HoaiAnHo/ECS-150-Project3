@@ -166,6 +166,14 @@ int fs_info(void)
 	/* Show Info about Volume */
 	// there should be a global class that contains the current vd info
 	// we would then read from it if available, and print the info
+	printf("FS Info:\n");
+	printf("total_blk_count=%i\n", cur_disk.super.total_blks);
+	printf("fat_blk_count=%i\n", cur_disk.super.fat_blks);
+	printf("rdir_blk=%i\n", cur_disk.super.root_dir_idx);
+	printf("data_blk=%i\n", cur_disk.super.data_blk_idx);
+	printf("data_blk_count=%i\n", cur_disk.super.total_data_blks);
+	printf("fat_free_ratio=%i/%i\n", 800, cur_disk.super.total_data_blks); // WHAT????
+	printf("rdir_free_ratio=%i/%i\n", 100, 128);                           // WHAT????
 
 	return 0;
 }
