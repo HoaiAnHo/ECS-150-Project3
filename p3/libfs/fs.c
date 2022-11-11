@@ -183,7 +183,20 @@ int fs_info(void)
 int fs_create(const char *filename)
 {
 	/* TODO: Phase 2 */
+	if (!block_disk_count() || !filename) return -1;
+	if (strlen(filename) > FS_FILENAME_LEN) return -1;
+	// check in root directory if the filename already exists, if so return -1
+
+
 	/* Create a new file */
+	// Find an empty entry in the root directory
+		// if this is the first time we're writing in a file:
+		// specify filename
+		// reset the other info because there's no content at this point
+			// size = 0, first index on data blocks = FAT_EOC
+	// cur_disk.root.entries[i];
+	// Fill entry in root directory with proper information
+
 
 	/* Initially, size is 0 and pointer to 1st block is FAT_EOC */
 }
@@ -192,6 +205,8 @@ int fs_delete(const char *filename)
 {
 	/* TODO: Phase 2 */
 	/* Delete an existing file */
+	// file's entry must be emptied
+	// all data blocks containing the file's contents must be freed in the FAT
 
 	/* Free allocated data blocks, if any */
 }
@@ -200,6 +215,7 @@ int fs_ls(void)
 {
 	/* TODO: Phase 2 */
 	/* List all the existing files */
+	// look at the reference program
 }
 
 /* TODO: Phase 3 - FILE DESCRIPTOR OPERATIONS 
@@ -209,6 +225,7 @@ int fs_open(const char *filename)
 {
 	/* TODO: Phase 3 */
 	/* Initialize and return file descriptor */
+	// this will be used for reading/writing operations, changing the file offset, etc.
 
 	/* 32 file descriptors max 
 	- Use FD_MAX macro */
@@ -229,8 +246,11 @@ int fs_stat(int fd)
 {
 	/* TODO: Phase 3 */
 	/* return file's size */
+	// corresponding to the specified file descriptor
+		// ex: to append to a file, call fs_lseek(fd, fs_stat(fd));
 }
 
+// offset = current reading/writing position in the file
 int fs_lseek(int fd, size_t offset)
 {
 	/* TODO: Phase 3 */
@@ -254,3 +274,14 @@ int fs_read(int fd, void *buf, size_t count)
 	/* Extend file if necessary */
 }
 
+// helper functions for phase 4
+// int data_blk_index()
+// {
+// 	// retruns the index of the data block corresponding to the file's offset
+// }
+
+// void alloc_data_blk()
+// {
+// 	// allocate new data block and link it at the end of the data's block chain
+// 	// allocation must follow first-fit strategy (first block availible from the beginning of the FAT)
+// }
