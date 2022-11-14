@@ -283,6 +283,10 @@ int free_fats()
 {
 	int free_count = 0;
 	// read through fat blocks, look at fat entries
+	for (i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
+	{
+		for (j = 0; j < data)
+	}
 	// return how many fat entries are still free
 	return free_count;
 }
