@@ -194,10 +194,14 @@ int fs_create(const char *filename)
 
 	/* Create a new file */
 	// Find an empty entry in the root directory
-		// if this is the first time we're writing in a file:
-		// specify filename
-		// reset the other info because there's no content at this point
-			// size = 0, first index on data blocks = FAT_EOC
+	// if this is the first time we're writing in a file:
+	struct root_entry entry;
+	// specify filename
+	entry.filename = *filename;
+	// size = 0, first index on data blocks = FAT_EOC
+	entry.file_size = 0;
+	entry.first_data_idx = 0;	
+	// reset the other info because there's no content at this point
 	// cur_disk.root.entries[i];
 	// Fill entry in root directory with proper information
 
