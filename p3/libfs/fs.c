@@ -175,8 +175,9 @@ int fs_info(void)
 	printf("rdir_blk=%i\n", cur_disk.super.root_dir_idx);
 	printf("data_blk=%i\n", cur_disk.super.data_blk_idx);
 	printf("data_blk_count=%i\n", cur_disk.super.total_data_blks);
-	printf("fat_free_ratio=%i/%i\n", fat_blk_free, cur_disk.super.total_data_blks); // WHAT????
-	printf("rdir_free_ratio=%i/%i\n", rdir_blk_free, 128);                          // WHAT????
+	printf("fat_free_ratio=%i/%i\n", free_fats(), cur_disk.super.total_data_blks); // WHAT????
+	printf("rdir_free_ratio=%i/%i\n", free_roots(), 128);                          // WHAT????
+
 
 	return 0;
 }
@@ -276,6 +277,24 @@ int fs_read(int fd, void *buf, size_t count)
 
 	/* Extend file if necessary */
 }
+
+// helper functions for phase 1
+int free_fats()
+{
+	int free_count = 0;
+	// read through fat blocks, look at fat entries
+	// return how many fat entries are still free
+	return free_count;
+}
+
+int free_roots()
+{
+	int free_count = 0;
+	return free_count;
+}
+
+// helper functions for phase 2
+
 
 // helper functions for phase 4
 // int data_blk_index()
