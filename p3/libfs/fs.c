@@ -8,6 +8,7 @@
 #include "disk.h"
 #include "fs.h"
 
+#define FAT_ENTRIES 2048;
 #define ROOT_DIR_MAX 128;
 #define FD_MAX 32;
 #define FAT_EOC 0xffff;
@@ -16,8 +17,9 @@
 int fat_blk_free;  //This global gets its value when we create fat blocks
 int rdir_blk_free; //I think this is always 128 because it should be equal to ROOT_DIR_MAX
 struct disk_blocks cur_disk; // global var for fs_info
+int fd_count; // count the current number of file descriptors?
 
-/* TODO: Phase 1 - VOLUME MOUNTING */
+/* Structs */
 
 // very first block of the disk, contains information about filesystem
 struct super_block{
@@ -58,6 +60,72 @@ struct disk_blocks{
 	struct root_blocks root;
 	struct fat_blocks *fat_blks;
 };
+
+/* Helper Functions */
+
+// helper functions for phase 1
+// return how many fat entries are still free
+int free_fats()
+{
+	int free_count = 0;
+	// read through fat blocks, look at fat entries
+	for (int i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
+	{
+		struct fat_blocks *point = &cur_disk.fat_blks[i];
+		for (int j = 0; j < 2048; j++)
+		{
+			if (point->entries[j] == 0) //entry is assigned value
+			{
+				free_count++;
+			}
+		}
+	}
+	return free_count;
+}
+
+int free_roots()
+{
+	int free_count = ROOT_DIR_MAX;
+	for (int i = 0; i < 128; i++)
+	{
+		if (cur_disk.root.entries[i].filename[0] != '\0')
+		{
+			free_count--;
+		}
+		else if (cur_disk.root.entries[i].filename[0] == '\0')
+		{
+			return free_count;
+		}
+	}
+	return 0;
+}
+
+// helper functions for phase 2
+int file_exist(const char *filename)
+{
+	for (int i = 0; i < 128; i++)
+	{
+		if (strcmp(filename, cur_disk.root.entries[i].filename) == 0) return 0;
+		else if (cur_disk.root.entries[i].filename[0] == '\0') return -1;
+	}
+	return -1;
+}
+
+// helper functions for phase 4
+int data_blk_index()
+{
+	// returns the index of the data block corresponding to the file's offset
+	return 0;
+}
+
+void alloc_data_blk()
+{
+	printf("you accessed the helper function!");
+	// allocate new data block and link it at the end of the data's block chain
+	// allocation must follow first-fit strategy (first block availible from the beginning of the FAT)
+}
+
+/* TODO: Phase 1 - VOLUME MOUNTING */
 
 int fs_mount(const char *diskname)
 {
@@ -160,6 +228,7 @@ int fs_umount(void)
 	/* Close Virtual Disk */
 	if (!block_disk_count()) return -1;
 	if (!block_disk_close()) return -1;
+	free(cur_disk.fat_blks);
 	return 0;
 }
 
@@ -175,8 +244,10 @@ int fs_info(void)
 	printf("rdir_blk=%i\n", cur_disk.super.root_dir_idx);
 	printf("data_blk=%i\n", cur_disk.super.data_blk_idx);
 	printf("data_blk_count=%i\n", cur_disk.super.total_data_blks);
-	printf("fat_free_ratio=%i/%i\n", free_fats(), cur_disk.super.total_data_blks); // WHAT????
-	printf("rdir_free_ratio=%i/%i\n", free_roots(), 128);                          // WHAT????
+	fat_blk_free = free_fats();
+	rdir_blk_free = free_roots();
+	printf("fat_free_ratio=%i/%i\n", fat_blk_free, cur_disk.super.total_data_blks); // WHAT????
+	printf("rdir_free_ratio=%i/%i\n", rdir_blk_free, 128);                          // WHAT????
 
 
 	return 0;
@@ -190,40 +261,52 @@ int fs_create(const char *filename)
 	if (!block_disk_count() || !filename) return -1;
 	if (strlen(filename) > FS_FILENAME_LEN) return -1;
 	// check in root directory if the filename already exists, if so return -1
-
+	if (file_exist(filename) < 0) return -1;
 
 	/* Create a new file */
-	// Find an empty entry in the root directory
 	// if this is the first time we're writing in a file:
-	struct root_entry entry;
-	// specify filename
-	entry.filename = *filename;
-	// size = 0, first index on data blocks = FAT_EOC
-	entry.file_size = 0;
-	entry.first_data_idx = 0;	
-	// reset the other info because there's no content at this point
-	// cur_disk.root.entries[i];
-	// Fill entry in root directory with proper information
+	if (cur_disk.root.entries[0].filename[0] == '\0')
+	{
+		// specify filename
+		*cur_disk.root.entries[0].filename = *filename;
+		// size = 0, first index on data blocks = FAT_EOC
+		cur_disk.root.entries[0].file_size = 0;
+		cur_disk.root.entries[0].first_data_idx = FAT_EOC;
+		// reset the other info because there's no content at this point
+		/* Initially, size is 0 and pointer to 1st block is FAT_EOC */
+	}
+	else{
+		// Find an empty entry in the root directory
+		int empty = ROOT_DIR_MAX - free_roots();
+		// Fill entry in root directory with proper information
+		*cur_disk.root.entries[empty].filename = *filename;
+		cur_disk.root.entries[empty].file_size = 0;
+		cur_disk.root.entries[empty].first_data_idx = FAT_EOC;
 
-
-	/* Initially, size is 0 and pointer to 1st block is FAT_EOC */
+		// QUESTION: HOW DO WE MODIFY DATA BLOCKS???
+		// QUESTION: WHAT INDEX VALUES DO WE ASSIGN???
+	}
+	return 0;
 }
 
 int fs_delete(const char *filename)
 {
-	/* TODO: Phase 2 */
 	/* Delete an existing file */
 	// file's entry must be emptied
 	// all data blocks containing the file's contents must be freed in the FAT
+	// 1) Go to root directory, find FAT entry first index from root entry
+	// 2) for each data block in the file, free the FAT entry
+	// 3) free that file's root entries
 
 	/* Free allocated data blocks, if any */
+	return 0;
 }
 
 int fs_ls(void)
 {
-	/* TODO: Phase 2 */
 	/* List all the existing files */
 	// look at the reference program
+	return 0;
 }
 
 /* TODO: Phase 3 - FILE DESCRIPTOR OPERATIONS 
@@ -242,12 +325,15 @@ int fs_open(const char *filename)
 
 	/* Contains the file's offset (initially 0) */
 
+	return 0;
 }
 
 int fs_close(int fd)
 {
 	/* TODO: Phase 3 */
 	/* Close file descriptor */
+	// close(fd);
+	return 0;
 }
 
 int fs_stat(int fd)
@@ -256,6 +342,7 @@ int fs_stat(int fd)
 	/* return file's size */
 	// corresponding to the specified file descriptor
 		// ex: to append to a file, call fs_lseek(fd, fs_stat(fd));
+	return 0;
 }
 
 // offset = current reading/writing position in the file
@@ -263,6 +350,7 @@ int fs_lseek(int fd, size_t offset)
 {
 	/* TODO: Phase 3 */
 	/* move file's offset */
+	return 0;
 }
 
 /* TODO: Phase 4 - FILE READING/WRITING 
@@ -272,6 +360,7 @@ int fs_write(int fd, void *buf, size_t count)
 {
 	/* TODO: Phase 4 */
 	/* Read a certain number of bytes from a file */
+	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
@@ -280,62 +369,5 @@ int fs_read(int fd, void *buf, size_t count)
 	/* Write a certain number of bytes to a file */
 
 	/* Extend file if necessary */
-}
-
-// helper functions for phase 1
-
-// return how many fat entries are still free
-int free_fats()
-{
-	int free_count = cur_disk.super.total_data_blks*2048;
-	// read through fat blocks, look at fat entries
-	for (int i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
-	{
-		struct fat_blocks *point = cur_disk.fat_blks[i];
-		for (int j = 0; j < 2048; j++)
-		{
-			if (point->entries[j] != 0) //entry is assigned value
-			{
-				free_count--;
-			}
-			else if (point->entries[j] == 0)
-			{
-				return free_count;
-			}
-		}
-	}
 	return 0;
 }
-
-int free_roots()
-{
-	int free_count = ROOT_DIR_MAX;
-	for (int i = 0; i < ROOT_DIR_MAX; i++)
-	{
-		struct root_entry entry = cur_disk.root.entries[i];
-		if (entry.filename[0] != '\0')
-		{
-			free_count--;
-		}
-		else if (entry.filename[0] == '\0')
-		{
-			return free_count;
-		}
-	}
-	return 0;
-}
-
-// helper functions for phase 2
-
-
-// helper functions for phase 4
-// int data_blk_index()
-// {
-// 	// retruns the index of the data block corresponding to the file's offset
-// }
-
-// void alloc_data_blk()
-// {
-// 	// allocate new data block and link it at the end of the data's block chain
-// 	// allocation must follow first-fit strategy (first block availible from the beginning of the FAT)
-// }
