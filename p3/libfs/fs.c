@@ -279,22 +279,46 @@ int fs_read(int fd, void *buf, size_t count)
 }
 
 // helper functions for phase 1
+
+// return how many fat entries are still free
 int free_fats()
 {
-	int free_count = 0;
+	int free_count = cur_disk.super.total_data_blks*2048;
 	// read through fat blocks, look at fat entries
-	for (i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
+	for (int i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
 	{
-		for (j = 0; j < data)
+		struct fat_blocks *point = cur_disk.fat_blks[i];
+		for (int j = 0; j < 2048; j++)
+		{
+			if (point->entries[j] != 0) //entry is assigned value
+			{
+				free_count--;
+			}
+			else if (point->entries[j] == 0)
+			{
+				return free_count;
+			}
+		}
 	}
-	// return how many fat entries are still free
-	return free_count;
+	return 0;
 }
 
 int free_roots()
 {
-	int free_count = 0;
-	return free_count;
+	int free_count = ROOT_DIR_MAX;
+	for (int i = 0; i < ROOT_DIR_MAX; i++)
+	{
+		struct root_entry entry = cur_disk.root.entries[i];
+		if (entry.filename[0] != '\0')
+		{
+			free_count--;
+		}
+		else if (entry.filename[0] == '\0')
+		{
+			return free_count;
+		}
+	}
+	return 0;
 }
 
 // helper functions for phase 2
