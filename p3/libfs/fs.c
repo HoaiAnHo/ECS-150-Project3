@@ -14,8 +14,8 @@
 #define FAT_EOC 0xffff;
 
 /* Global Variables */
-int fat_blk_free;  //This global gets its value when we create fat blocks
-int rdir_blk_free; //I think this is always 128 because it should be equal to ROOT_DIR_MAX
+int fat_blk_free;  // Keeps track of free fat blocks
+int rdir_blk_free; // Keeps track of free root blocks
 struct disk_blocks cur_disk; // global var for fs_info
 int fd_count; // count the current number of file descriptors?
 
@@ -34,8 +34,6 @@ struct super_block{
 
 // linked list structure for FAT blocks
 struct fat_blocks{
-	//struct fat_blocks *prev;
-	//struct fat_blocks *next;
 	int16_t entries[2048]; // 2 bytes
 };
 
@@ -53,10 +51,6 @@ struct root_blocks{
 
 struct disk_blocks{
 	struct super_block super;
-	/*
-	struct fat_blocks * fat_front; //starting block
-	struct fat_blocks * fat_back; //starting block
-	*/
 	struct root_blocks root;
 	struct fat_blocks *fat_blks;
 };
@@ -69,7 +63,7 @@ int free_fats()
 {
 	int free_count = 0;
 	// read through fat blocks, look at fat entries
-	for (int i = cur_disk.super.data_blk_idx; i < cur_disk.super.data_blk_idx + cur_disk.super.fat_blks; i++)
+	for (int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
 		struct fat_blocks *point = &cur_disk.fat_blks[i];
 		for (int j = 0; j < 2048; j++)
@@ -151,16 +145,8 @@ int fs_mount(const char *diskname)
 
 	cur_disk.super = obj;
 
-	//Checking all important info was pulled from first block and given to global disk object
-	printf("Signature: %ld \n", cur_disk.super.signature);
-	printf("Total Blocks: %d \n", cur_disk.super.total_blks);
-	printf("Root Directory Block index: %d \n", cur_disk.super.root_dir_idx);
-	printf("Data block root index: %d \n", cur_disk.super.data_blk_idx);
-	printf("Root Directory Block index: %d \n", cur_disk.super.root_dir_idx);
-	printf("Amount of Data Blocks: %d \n", cur_disk.super.total_data_blks);
-	printf("FAT Blocks: %d \n", cur_disk.super.fat_blks);
-
 	printf("Fat Block Part \n");
+
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
 	/*for (int8_t f = 0; f < cur_disk.super.fat_blks; f++){
 		struct fat_blocks cur_block;
