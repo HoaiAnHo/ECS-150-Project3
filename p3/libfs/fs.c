@@ -49,10 +49,15 @@ struct root_blocks{
 	struct root_entry entries[128];
 };
 
+struct data_blocks{
+	int16_t data[2048]; // 2 bytes
+};
+
 struct disk_blocks{
 	struct super_block super;
 	struct root_blocks root;
 	struct fat_blocks *fat_blks;
+	struct data_blocks *data_blks;
 };
 
 /* Helper Functions */
@@ -140,55 +145,8 @@ int fs_mount(const char *diskname)
 	/* Read the metadata (superblock, fat, root directory)*/
 	// 1) Superblock - 1st 8 bytes
 	struct super_block obj;
-
 	block_read(0, &obj);
-
 	cur_disk.super = obj;
-
-	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
-	/*for (int8_t f = 0; f < cur_disk.super.fat_blks; f++){
-		struct fat_blocks cur_block;
-
-		// what will each entry in the current fat block have
-		int16_t fat_entry;
-		if (f < cur_disk.super.total_data_blks)
-		{
-			fat_entry = 0;
-		}
-		else if (f == cur_disk.super.total_data_blks - 1)
-		{
-			fat_entry = FAT_EOC;
-		}
-		else 
-		{
-			fat_entry = f + 1;
-		}
-
-		// assign value to each fat entry in the current block
-		for (int t = 0; t < 2048; t++){
-			cur_block.entries[t] = fat_entry;
-		}
-
-		// assign links
-		if (f == 0){
-			cur_block.prev = NULL; // if first FAT block
-			cur_block.next = NULL;
-			cur_disk.fat_front = &cur_block;
-			cur_disk.fat_back = NULL;
-		} 
-		else if (f == cur_disk.super.total_data_blks - 1){
-			cur_block.next = NULL; // if last FAT block
-			cur_disk.fat_back = &cur_block;
-		} 
-		else{
-			struct fat_blocks * copy_back = cur_disk.fat_back;
-			cur_block.prev = copy_back;
-			cur_block.next = NULL;
-			cur_disk.fat_back = &cur_block;
-			copy_back->next = cur_disk.fat_back;
-		}
-	}
-	*/
 
 	// 2.2 FAT blocks - each block is 2048 entries, each entry is 16 bits
 	cur_disk.fat_blks = malloc(sizeof(struct fat_blocks) * cur_disk.super.fat_blks);
@@ -203,6 +161,15 @@ int fs_mount(const char *diskname)
 	block_read(cur_disk.super.root_dir_idx, &r_blocks);
 	cur_disk.root = r_blocks;
 
+	// 4) Data Blocks - from 1st data block index to the end
+	cur_disk.data_blks = malloc(sizeof(struct data_blocks) * cur_disk.super.total_data_blks);
+	struct data_blocks one_block_of_data;
+
+	for(int i = cur_disk.super.data_blk_idx; i < cur_disk.super.total_data_blks; i++)
+	{
+		block_read(i, &cur_disk.data_blks[i]);
+	}
+
 	return 0;
 }
 
@@ -211,7 +178,25 @@ int fs_umount(void)
 	/* Close Virtual Disk */
 	if (!block_disk_count()) return -1;
 	if (!block_disk_close()) return -1;
+
+	// Writing in current FAT blocks
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		block_write(1+i, &cur_disk.fat_blks[i]);
+	}
+
+	// Writing in current Root block
+	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
+
+	//Writing in current data blocks
+	for(int i = cur_disk.super.data_blk_idx; i < cur_disk.super.total_data_blks; i++)
+	{
+		block_write(i, &cur_disk.data_blks[i]);
+	}
+
 	free(cur_disk.fat_blks);
+	free(cur_disk.data_blks);
+	block_disk_close();
 	return 0;
 }
 
@@ -229,9 +214,8 @@ int fs_info(void)
 	printf("data_blk_count=%i\n", cur_disk.super.total_data_blks);
 	fat_blk_free = free_fats();
 	rdir_blk_free = free_roots();
-	printf("fat_free_ratio=%i/%i\n", fat_blk_free, cur_disk.super.total_data_blks); // WHAT????
-	printf("rdir_free_ratio=%i/%i\n", rdir_blk_free, 128);                          // WHAT????
-
+	printf("fat_free_ratio=%i/%i\n", fat_blk_free, cur_disk.super.total_data_blks);
+	printf("rdir_free_ratio=%i/%i\n", rdir_blk_free, 128);                          
 
 	return 0;
 }
