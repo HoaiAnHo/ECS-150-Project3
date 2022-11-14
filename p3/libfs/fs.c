@@ -13,6 +13,8 @@
 #define FAT_EOC 0xffff;
 
 /* Global Variables */
+int fat_blk_free;
+int rdir_blk_free;
 struct disk_blocks cur_disk; // global var for fs_info
 
 /* TODO: Phase 1 - VOLUME MOUNTING */
@@ -75,17 +77,12 @@ int fs_mount(const char *diskname)
 	// 1) Superblock - 1st 8 bytes
 	struct super_block obj;
 
-	/*
-	block_read(0, &obj.signature);
-	block_read(0, &obj.total_blks);
-	*/
-
 	block_read(0, &obj);
 
 	cur_disk.super = obj;
 	// block_write(0, &buf);
 
-
+	//Checking all important info was pulled from first block
 	printf("Signature: %ld \n", obj.signature);
 	printf("Total Blocks: %d \n", obj.total_blks);
 	printf("Root Directory Block index: %d \n", obj.root_dir_idx);
@@ -93,6 +90,14 @@ int fs_mount(const char *diskname)
 	printf("Root Directory Block index: %d \n", obj.root_dir_idx);
 	printf("Amount of Data Blocks: %d \n", obj.total_data_blks);
 	printf("FAT Blocks: %d \n", obj.fat_blks);
+
+	printf("Signature: %ld \n", cur_disk.super.signature);
+	printf("Total Blocks: %d \n", cur_disk.super.total_blks);
+	printf("Root Directory Block index: %d \n", cur_disk.super.root_dir_idx);
+	printf("Data block root index: %d \n", cur_disk.super.data_blk_idx);
+	printf("Root Directory Block index: %d \n", cur_disk.super.root_dir_idx);
+	printf("Amount of Data Blocks: %d \n", cur_disk.super.total_data_blks);
+	printf("FAT Blocks: %d \n", cur_disk.super.fat_blks);
 
 	printf("Fat Block Part \n");
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
@@ -141,9 +146,6 @@ int fs_mount(const char *diskname)
 
 	printf("Root Part \n");
 	// 3) Root directory - 1 block, 32-byte entry per file
-	/*struct root_entry r_blocks[128];
-	block_read(cur_disk.super.root_dir_idx, &r_blocks);
-	cur_disk.root = r_blocks; */
 
 	struct root_blocks r_blocks;
 	block_read(cur_disk.super.root_dir_idx, &r_blocks);
