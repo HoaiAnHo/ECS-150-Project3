@@ -145,8 +145,6 @@ int fs_mount(const char *diskname)
 
 	cur_disk.super = obj;
 
-	printf("Fat Block Part \n");
-
 	// 2) FAT blocks - each block is 2048 entries, each entry is 16 bits
 	/*for (int8_t f = 0; f < cur_disk.super.fat_blks; f++){
 		struct fat_blocks cur_block;
@@ -199,7 +197,6 @@ int fs_mount(const char *diskname)
 		block_read(1+i, &cur_disk.fat_blks[i]);
 	}
 
-	printf("Root Part \n");
 	// 3) Root directory - 1 block, 32-byte entry per file
 
 	struct root_blocks r_blocks;
