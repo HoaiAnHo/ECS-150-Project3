@@ -176,8 +176,8 @@ int fs_mount(const char *diskname)
 int fs_umount(void)
 {
 	/* Close Virtual Disk */
-	if (!block_disk_count()) return -1;
-	if (!block_disk_close()) return -1;
+	if (block_disk_count() == -1) return -1;
+	if (block_disk_close() != 0) return -1;
 
 	// Writing in current FAT blocks
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
@@ -225,7 +225,7 @@ int fs_info(void)
 int fs_create(const char *filename)
 {
 	/* TODO: Phase 2 */
-	if (!block_disk_count() || !filename) return -1;
+	if (block_disk_count() == -1 || !filename) return -1;
 	if (strlen(filename) > FS_FILENAME_LEN) return -1;
 	// check in root directory if the filename already exists, if so return -1
 	if (file_exist(filename) < 0) return -1;
@@ -262,8 +262,25 @@ int fs_delete(const char *filename)
 	// file's entry must be emptied
 	// all data blocks containing the file's contents must be freed in the FAT
 	// 1) Go to root directory, find FAT entry first index from root entry
-	// 2) for each data block in the file, free the FAT entry
-	// 3) free that file's root entries
+	int index = 1;
+	for (int i = 0; i < ROOT_DIR_MAX; i++)
+	{
+		if (strcmp(cur_disk.root.entries[i].filename, filename) == 0)
+		{
+			index = cur_disk.root.entries[i].first_data_idx;
+			break;
+		}
+	}
+	// 2) for each data block in the file, free the FAT entry/data blocks
+	int fat_idx = 0;
+	while (index != FAT_EOC)
+	{
+		// fat_idx = index % FAT_ENTRIES;
+		// index = index % cur_disk.super.fat_blks;
+		// cur_disk.data_blks[cur_disk.super.data_blk_idx + index];
+		// cur_disk.fat_blks->entries[index];
+	}	
+	// 3) free that file's root entry
 
 	/* Free allocated data blocks, if any */
 	return 0;
@@ -271,8 +288,24 @@ int fs_delete(const char *filename)
 
 int fs_ls(void)
 {
+	if (block_disk_count() == -1) return -1;
 	/* List all the existing files */
-	// look at the reference program
+	printf("FS Ls:\n");
+	// iterate through root directory and pull values
+	for (int i = 0; i < ROOT_DIR_MAX; i++)
+	{
+		if (cur_disk.root.entries[i].filename[0] != '\0')
+		{
+			printf("file: %s, size: %i, data_blk: %i\n", 
+			cur_disk.root.entries[i].filename, 
+			cur_disk.root.entries[i].file_size, 
+			cur_disk.root.entries[i].first_data_idx);
+		}
+		else
+		{
+			return 0;
+		}
+	}
 	return 0;
 }
 
