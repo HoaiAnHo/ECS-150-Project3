@@ -177,8 +177,7 @@ int fs_umount(void)
 {
 	/* Close Virtual Disk */
 	if (block_disk_count() == -1) return -1;
-	if (block_disk_close() != 0) return -1;
-
+	/*
 	// Writing in current FAT blocks
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
@@ -193,7 +192,7 @@ int fs_umount(void)
 	{
 		block_write(i, &cur_disk.data_blks[i]);
 	}
-
+	*/
 	free(cur_disk.fat_blks);
 	free(cur_disk.data_blks);
 	block_disk_close();
@@ -263,7 +262,7 @@ int fs_delete(const char *filename)
 	// all data blocks containing the file's contents must be freed in the FAT
 	// 1) Go to root directory, find FAT entry first index from root entry
 	int index = 1;
-	for (int i = 0; i < ROOT_DIR_MAX; i++)
+	for (int i = 0; i < 128; i++)
 	{
 		if (strcmp(cur_disk.root.entries[i].filename, filename) == 0)
 		{
@@ -273,7 +272,7 @@ int fs_delete(const char *filename)
 	}
 	// 2) for each data block in the file, free the FAT entry/data blocks
 	int fat_idx = 0;
-	while (index != FAT_EOC)
+	while (index != 0xffff)
 	{
 		// fat_idx = index % FAT_ENTRIES;
 		// index = index % cur_disk.super.fat_blks;
@@ -292,7 +291,7 @@ int fs_ls(void)
 	/* List all the existing files */
 	printf("FS Ls:\n");
 	// iterate through root directory and pull values
-	for (int i = 0; i < ROOT_DIR_MAX; i++)
+	for (int i = 0; i < 128; i++)
 	{
 		if (cur_disk.root.entries[i].filename[0] != '\0')
 		{
