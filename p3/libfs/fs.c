@@ -39,7 +39,7 @@ struct fat_blocks{
 
 struct root_entry{
 	int8_t filename[16];
-	int64_t file_size;
+	int32_t file_size;
 	int16_t first_data_idx;
 	int8_t padding[10];
 };
@@ -70,10 +70,10 @@ int free_fats()
 	// read through fat blocks, look at fat entries
 	for (int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
-		struct fat_blocks *point = &cur_disk.fat_blks[i];
+		struct fat_blocks current_block = cur_disk.fat_blks[i];
 		for (int j = 0; j < 2048; j++)
 		{
-			if (point->entries[j] == 0) //entry is assigned value
+			if (current_block.entries[j] == 0) //entry is assigned value
 			{
 				free_count++;
 			}
@@ -82,6 +82,7 @@ int free_fats()
 	return free_count;
 }
 
+// Function to help find the number of free spots in the root block
 int free_roots()
 {
 	int free_count = ROOT_DIR_MAX;
@@ -97,6 +98,33 @@ int free_roots()
 		}
 	}
 	return 0;
+}
+
+// Function to help find a free spot in the fat blocks
+int find_free_fat_spot(struct fat_blocks block)
+{
+	for(int i = 0; i < 2048; i++)
+	{
+		if(block.entries[i] == 0)
+			return i;
+	}
+	return -1;
+}
+
+// Function to help find a free spot in the root block
+int find_free_root_spot()
+{
+	int free_spot = 0;
+	for (int i = 0; i < 128; i++)
+	{
+		if (cur_disk.root.entries[i].filename[0] == '\0')
+		{
+			free_spot = i;
+			return free_spot;
+		}
+	}
+	// If -1 return then there are no more free spots in the root
+	return -1;
 }
 
 // helper functions for phase 2
@@ -175,8 +203,14 @@ int fs_mount(const char *diskname)
 
 int fs_umount(void)
 {
-	/* Close Virtual Disk */
+	/* Chack if virtual disk os open */
 	if (block_disk_count() == -1) return -1;
+
+	/* May not have to do all the block writing here, prof said we could do it in parts
+	when we make changes in the other functions which may be faster than doing it all
+	at once at the end. However, we can do this if we, for the life of us, can't get it
+	right in smaller parts */
+
 	/*
 	// Writing in current FAT blocks
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
@@ -193,6 +227,8 @@ int fs_umount(void)
 		block_write(i, &cur_disk.data_blks[i]);
 	}
 	*/
+
+	//free allocated space and close disk
 	free(cur_disk.fat_blks);
 	free(cur_disk.data_blks);
 	block_disk_close();
@@ -229,7 +265,45 @@ int fs_create(const char *filename)
 	// check in root directory if the filename already exists, if so return -1
 	if (file_exist(filename) < 0) return -1;
 
-	/* Create a new file */
+	// Create New File
+
+	//Looking for a free spot in the root
+	int free_root_location = find_free_root_spot();
+	if(free_root_location == -1)
+	{
+		printf("No More Free spots in Root");
+		return 0;
+	}
+
+	//Looking for a free spot in any of the fat blocks
+	int free_fat_blk;
+	int free_fat_location;
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		free_fat_location = find_free_fat_spot(cur_disk.fat_blks[i]);
+
+		if(free_fat_location != -1) //We found a free spot
+		{
+			free_fat_blk = i; //Save the block we found it in
+			break; //Stop the search
+		}
+	}
+
+	//Calculate data block index
+	int data_block_index = 2048*free_fat_blk + free_fat_location;
+
+	//Set all information to current root entry
+	*cur_disk.root.entries[free_root_location].filename = *filename;
+	cur_disk.root.entries[free_root_location].file_size = 0;
+	cur_disk.root.entries[free_root_location].first_data_idx = data_block_index;
+
+	// Now we have to write this altered root block onto the virtual disk
+	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//Old Code for fs_create()
+
+	/* Create a new file 
 	// if this is the first time we're writing in a file:
 	if (cur_disk.root.entries[0].filename[0] == '\0')
 	{
@@ -239,7 +313,7 @@ int fs_create(const char *filename)
 		cur_disk.root.entries[0].file_size = 0;
 		cur_disk.root.entries[0].first_data_idx = FAT_EOC;
 		// reset the other info because there's no content at this point
-		/* Initially, size is 0 and pointer to 1st block is FAT_EOC */
+		/* Initially, size is 0 and pointer to 1st block is FAT_EOC 
 	}
 	else{
 		// Find an empty entry in the root directory
@@ -252,6 +326,7 @@ int fs_create(const char *filename)
 		// QUESTION: HOW DO WE MODIFY DATA BLOCKS???
 		// QUESTION: WHAT INDEX VALUES DO WE ASSIGN???
 	}
+	*/
 	return 0;
 }
 
