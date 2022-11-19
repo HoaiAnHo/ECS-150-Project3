@@ -37,6 +37,10 @@ struct fat_blocks{
 	int16_t entries[2048]; // 2 bytes
 };
 
+struct fat_entry{
+	int16_t entry;
+};
+
 struct root_entry{
 	int8_t filename[16];
 	int32_t file_size;
@@ -58,6 +62,7 @@ struct disk_blocks{
 	struct root_blocks root;
 	struct fat_blocks *fat_blks;
 	struct data_blocks *data_blks;
+	struct fat_entry *fat_entries;
 };
 
 /* Helper Functions */
@@ -68,16 +73,12 @@ int free_fats()
 {
 	int free_count = 0;
 	// read through fat blocks, look at fat entries
-	for (int i = 0; i < cur_disk.super.fat_blks; i++)
+	for (int i = 0; i < cur_disk.super.fat_blks*2048; i++)
 	{
-		struct fat_blocks current_block = cur_disk.fat_blks[i];
-		for (int j = 0; j < 2048; j++)
-		{
-			if (current_block.entries[j] == 0) //entry is assigned value
+			if (cur_disk.fat_entries[i].entry == 0) //entry is assigned value
 			{
 				free_count++;
 			}
-		}
 	}
 	return free_count;
 }
@@ -101,13 +102,14 @@ int free_roots()
 }
 
 // Function to help find a free spot in the fat blocks
-int find_free_fat_spot(struct fat_blocks block)
+int find_free_fat_spot()
 {
-	for(int i = 0; i < 2048; i++)
+	for(int i = 0; i < cur_disk.super.fat_blks*2048; i++)
 	{
-		if(block.entries[i] == 0)
+		if(cur_disk.fat_entries[i].entry == 0)
 			return i;
 	}
+	//If cannot find a free spot return -1
 	return -1;
 }
 
@@ -177,10 +179,10 @@ int fs_mount(const char *diskname)
 	cur_disk.super = obj;
 
 	// 2.2 FAT blocks - each block is 2048 entries, each entry is 16 bits
-	cur_disk.fat_blks = malloc(sizeof(struct fat_blocks) * cur_disk.super.fat_blks);
+	cur_disk.fat_entries = malloc(sizeof(struct fat_entry) * cur_disk.super.fat_blks * 2048);
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
-		block_read(1+i, &cur_disk.fat_blks[i]);
+		block_read(1+i, &cur_disk.fat_entries[i*2048]);
 	}
 
 	// 3) Root directory - 1 block, 32-byte entry per file
@@ -276,8 +278,8 @@ int fs_create(const char *filename)
 	}
 
 	//Looking for a free spot in any of the fat blocks
-	int free_fat_blk;
-	int free_fat_location;
+	int free_fat_blk; //Need to keep track of the block we found the spot in
+	int free_fat_location; // The spot itself
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
 		free_fat_location = find_free_fat_spot(cur_disk.fat_blks[i]);
