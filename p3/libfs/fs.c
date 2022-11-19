@@ -453,7 +453,7 @@ int fs_lseek(int fd, size_t offset)
 {
 	/* move file's offset */
 	int cur_offset = file_desc[fd].offset;
-	// file_desc[fd].offset = cur_offset + offset;
+	file_desc[fd].offset = cur_offset + offset;
 	return 0;
 }
 
