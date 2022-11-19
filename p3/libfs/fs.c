@@ -18,6 +18,7 @@ int fat_blk_free;  // Keeps track of free fat blocks
 int rdir_blk_free; // Keeps track of free root blocks
 struct disk_blocks cur_disk; // global var for fs_info
 int fd_count; // count the current number of file descriptors?
+struct file_descriptor file_desc[FD_MAX]; // keep all fds here
 
 /* Structs */
 
@@ -63,6 +64,11 @@ struct disk_blocks{
 	struct fat_blocks *fat_blks;
 	struct data_blocks *data_blks;
 	struct fat_entry *fat_entries;
+};
+
+struct file_descriptor{
+	int offset;
+	char *filename;
 };
 
 /* Helper Functions */
@@ -135,7 +141,7 @@ int file_exist(const char *filename)
 	for (int i = 0; i < 128; i++)
 	{
 		if (strcmp(filename, cur_disk.root.entries[i].filename) == 0) return 0;
-		else if (cur_disk.root.entries[i].filename[0] == '\0') return -1;
+		// else if (cur_disk.root.entries[i].filename[0] == '\0') return -1;
 	}
 	return -1;
 }
@@ -344,19 +350,26 @@ int fs_delete(const char *filename)
 		if (strcmp(cur_disk.root.entries[i].filename, filename) == 0)
 		{
 			index = cur_disk.root.entries[i].first_data_idx;
+
+			// 2) free that file's root entry
+			*cur_disk.root.entries[i].filename = '\0';
+			cur_disk.root.entries[i].file_size = 0;
+			cur_disk.root.entries[i].first_data_idx = 0;
+			// not sure what else to do about padding
 			break;
 		}
 	}
-	// 2) for each data block in the file, free the FAT entry/data blocks
-	int fat_idx = 0;
+	// 3) for each data block in the file, free the FAT entry/data blocks
+	int next_idx = 1;
 	while (index != 0xffff)
 	{
-		// fat_idx = index % FAT_ENTRIES;
-		// index = index % cur_disk.super.fat_blks;
+		//free(cur_disk.data_blks[index]); ???
+		next_idx = cur_disk.fat_entries[index].entry;
+		cur_disk.fat_entries[index].entry = 0;
+		index = next_idx;
 		// cur_disk.data_blks[cur_disk.super.data_blk_idx + index];
 		// cur_disk.fat_blks->entries[index];
 	}	
-	// 3) free that file's root entry
 
 	/* Free allocated data blocks, if any */
 	return 0;
@@ -390,42 +403,57 @@ none of these functions should change the file system*/
 
 int fs_open(const char *filename)
 {
-	/* TODO: Phase 3 */
 	/* Initialize and return file descriptor */
 	// this will be used for reading/writing operations, changing the file offset, etc.
-
-	/* 32 file descriptors max 
-	- Use FD_MAX macro */
-
 	/* Can open same filee multiple times */
-
 	/* Contains the file's offset (initially 0) */
 
+	if (block_disk_count() == -1 || fd_count == 32) return -1;
+	if (!filename || file_exist(filename) == -1) return -1;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!file_desc[i])
+		{
+			for (int j = 0; j < 128; j++)
+			{
+				if (strcmp(cur_disk.root.entries[j].filename, filename) == 0)
+				{
+					file_desc[i].filename = *filename;
+					file_desc[i].offset = 0;
+					fd_count++;
+					return i;
+				}
+			}
+		}
+	}
+	printf("something's wrong with the fs open implementation")
 	return 0;
 }
 
 int fs_close(int fd)
 {
-	/* TODO: Phase 3 */
 	/* Close file descriptor */
-	// close(fd);
+	file_desc[fd] = NULL;
+	fd_count--;
 	return 0;
 }
 
 int fs_stat(int fd)
 {
-	/* TODO: Phase 3 */
 	/* return file's size */
+	int offset = file_desc[fd].offset;
 	// corresponding to the specified file descriptor
 		// ex: to append to a file, call fs_lseek(fd, fs_stat(fd));
-	return 0;
+	return offset;
 }
 
 // offset = current reading/writing position in the file
 int fs_lseek(int fd, size_t offset)
 {
-	/* TODO: Phase 3 */
 	/* move file's offset */
+	int cur_offset = file_desc[fd].offset;
+	// file_desc[fd].offset = cur_offset + offset;
 	return 0;
 }
 
