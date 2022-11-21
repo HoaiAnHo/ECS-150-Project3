@@ -8,17 +8,9 @@
 #include "disk.h"
 #include "fs.h"
 
+/* Useful macros*/
 #define FAT_ENTRIES 2048;
-#define ROOT_DIR_MAX 128;
-#define FD_MAX 32;
 #define FAT_EOC 0xffff;
-
-/* Global Variables */
-int fat_blk_free;  // Keeps track of free fat blocks
-int rdir_blk_free; // Keeps track of free root blocks
-struct disk_blocks cur_disk; // global var for fs_info
-int fd_count; // count the current number of file descriptors?
-struct file_descriptor file_desc[FD_MAX]; // keep all fds here
 
 /* Structs */
 
@@ -51,7 +43,7 @@ struct root_entry{
 
 // array structure for root entries
 struct root_blocks{
-	struct root_entry entries[128];
+	struct root_entry entries[FS_FILE_MAX_COUNT];
 };
 
 struct data_blocks{
@@ -68,8 +60,16 @@ struct disk_blocks{
 
 struct file_descriptor{
 	int offset;
+	int status; //0 is open, 1 is closed
 	char *filename;
 };
+
+// Global Variables
+int fat_blk_free;  // Keeps track of free fat blocks
+int rdir_blk_free; // Keeps track of free root blocks
+struct disk_blocks cur_disk; // global var for fs_info
+int fd_count; // count the current number of file descriptors?
+struct file_descriptor file_desc[FS_OPEN_MAX_COUNT]; // keep all fds here
 
 /* Helper Functions */
 
@@ -92,8 +92,8 @@ int free_fats()
 // Function to help find the number of free spots in the root block
 int free_roots()
 {
-	int free_count = ROOT_DIR_MAX;
-	for (int i = 0; i < 128; i++)
+	int free_count = FS_FILE_MAX_COUNT;
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++)
 	{
 		if (cur_disk.root.entries[i].filename[0] != '\0')
 		{
@@ -123,7 +123,7 @@ int find_free_fat_spot()
 int find_free_root_spot()
 {
 	int free_spot = 0;
-	for (int i = 0; i < 128; i++)
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++)
 	{
 		if (cur_disk.root.entries[i].filename[0] == '\0')
 		{
@@ -140,10 +140,10 @@ int file_exist(const char *filename)
 {
 	for (int i = 0; i < 128; i++)
 	{
-		if (strcmp(filename, cur_disk.root.entries[i].filename) == 0) return 0;
+		if (strcmp(filename, cur_disk.root.entries[i].filename) == 0) return 1; //found
 		// else if (cur_disk.root.entries[i].filename[0] == '\0') return -1;
 	}
-	return -1;
+	return 0; //not found
 }
 
 // helper functions for phase 4
@@ -268,10 +268,22 @@ int fs_info(void)
 int fs_create(const char *filename)
 {
 	/* TODO: Phase 2 */
-	if (block_disk_count() == -1 || !filename) return -1;
-	if (strlen(filename) > FS_FILENAME_LEN) return -1;
+	if (block_disk_count() == -1 || !filename)
+	{
+		printf("No disk mounted \n");
+		return -1;
+	}
+	if (strlen(filename) > FS_FILENAME_LEN)
+	{
+		printf("Name too long \n");
+		return -1;
+	}
 	// check in root directory if the filename already exists, if so return -1
-	if (file_exist(filename) < 0) return -1;
+	if (file_exist(filename) == 1)
+	{
+		printf("File already exists \n");
+		return -1;
+	}
 
 	// Create New File
 
@@ -284,57 +296,25 @@ int fs_create(const char *filename)
 	}
 
 	//Looking for a free spot in any of the fat blocks
-	int free_fat_blk; //Need to keep track of the block we found the spot in
-	int free_fat_location; // The spot itself
-	for(int i = 0; i < cur_disk.super.fat_blks; i++)
-	{
-		free_fat_location = find_free_fat_spot(cur_disk.fat_blks[i]);
+	int free_fat_location = find_free_fat_spot();
 
-		if(free_fat_location != -1) //We found a free spot
-		{
-			free_fat_blk = i; //Save the block we found it in
-			break; //Stop the search
-		}
+	if(free_fat_location == -1)
+	{
+		printf("No more free locations in FAT");
+		return 0;
 	}
 
 	//Calculate data block index
-	int data_block_index = 2048*free_fat_blk + free_fat_location;
+	int data_block_index = free_fat_location;
 
 	//Set all information to current root entry
-	*cur_disk.root.entries[free_root_location].filename = *filename;
+	strcpy(cur_disk.root.entries[free_root_location].filename, filename);
 	cur_disk.root.entries[free_root_location].file_size = 0;
 	cur_disk.root.entries[free_root_location].first_data_idx = data_block_index;
 
 	// Now we have to write this altered root block onto the virtual disk
 	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	//Old Code for fs_create()
-
-	/* Create a new file 
-	// if this is the first time we're writing in a file:
-	if (cur_disk.root.entries[0].filename[0] == '\0')
-	{
-		// specify filename
-		*cur_disk.root.entries[0].filename = *filename;
-		// size = 0, first index on data blocks = FAT_EOC
-		cur_disk.root.entries[0].file_size = 0;
-		cur_disk.root.entries[0].first_data_idx = FAT_EOC;
-		// reset the other info because there's no content at this point
-		/* Initially, size is 0 and pointer to 1st block is FAT_EOC 
-	}
-	else{
-		// Find an empty entry in the root directory
-		int empty = ROOT_DIR_MAX - free_roots();
-		// Fill entry in root directory with proper information
-		*cur_disk.root.entries[empty].filename = *filename;
-		cur_disk.root.entries[empty].file_size = 0;
-		cur_disk.root.entries[empty].first_data_idx = FAT_EOC;
-
-		// QUESTION: HOW DO WE MODIFY DATA BLOCKS???
-		// QUESTION: WHAT INDEX VALUES DO WE ASSIGN???
-	}
-	*/
 	return 0;
 }
 
@@ -352,7 +332,7 @@ int fs_delete(const char *filename)
 			index = cur_disk.root.entries[i].first_data_idx;
 
 			// 2) free that file's root entry
-			*cur_disk.root.entries[i].filename = '\0';
+			strcpy(cur_disk.root.entries[i].filename, "\0");
 			cur_disk.root.entries[i].file_size = 0;
 			cur_disk.root.entries[i].first_data_idx = 0;
 			// not sure what else to do about padding
@@ -361,7 +341,7 @@ int fs_delete(const char *filename)
 	}
 	// 3) for each data block in the file, free the FAT entry/data blocks
 	int next_idx = 1;
-	while (index != 0xffff)
+	while (cur_disk.fat_entries[index].entry != 0xffff)
 	{
 		//free(cur_disk.data_blks[index]); ???
 		next_idx = cur_disk.fat_entries[index].entry;
@@ -408,12 +388,12 @@ int fs_open(const char *filename)
 	/* Can open same filee multiple times */
 	/* Contains the file's offset (initially 0) */
 
-	if (block_disk_count() == -1 || fd_count == 32) return -1;
+	if (block_disk_count() == -1 || fd_count == FS_OPEN_MAX_COUNT) return -1;
 	if (!filename || file_exist(filename) == -1) return -1;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < FS_OPEN_MAX_COUNT; i++)
 	{
-		if (!file_desc[i])
+		if (!file_desc[i].status)
 		{
 			for (int j = 0; j < 128; j++)
 			{
@@ -427,14 +407,14 @@ int fs_open(const char *filename)
 			}
 		}
 	}
-	printf("something's wrong with the fs open implementation")
+	printf("something's wrong with the fs open implementation");
 	return 0;
 }
 
 int fs_close(int fd)
 {
 	/* Close file descriptor */
-	file_desc[fd] = NULL;
+	file_desc[fd].status = 0;
 	fd_count--;
 	return 0;
 }
