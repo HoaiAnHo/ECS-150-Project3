@@ -320,16 +320,17 @@ int fs_create(const char *filename)
 
 int fs_delete(const char *filename)
 {
+	printf("fs_delete called \n");
 	/* Delete an existing file */
 	// file's entry must be emptied
 	// all data blocks containing the file's contents must be freed in the FAT
 	// 1) Go to root directory, find FAT entry first index from root entry
-	int index = 1;
+	int first_FAT = 1;
 	for (int i = 0; i < 128; i++)
 	{
 		if (strcmp(cur_disk.root.entries[i].filename, filename) == 0)
 		{
-			index = cur_disk.root.entries[i].first_data_idx;
+			first_FAT = cur_disk.root.entries[i].first_data_idx;
 
 			// 2) free that file's root entry
 			strcpy(cur_disk.root.entries[i].filename, "\0");
@@ -339,18 +340,21 @@ int fs_delete(const char *filename)
 			break;
 		}
 	}
+	printf("Got passed emptying root entry \n");
 	// 3) for each data block in the file, free the FAT entry/data blocks
+	int current_FAT = first_FAT;
+
 	int next_idx = 1;
-	while (cur_disk.fat_entries[index].entry != 0xffff)
+	while (cur_disk.fat_entries[current_FAT].entry != -1)
 	{
 		//free(cur_disk.data_blks[index]); ???
-		next_idx = cur_disk.fat_entries[index].entry;
-		cur_disk.fat_entries[index].entry = 0;
-		index = next_idx;
+		next_idx = cur_disk.fat_entries[current_FAT].entry;
+		cur_disk.fat_entries[current_FAT].entry = 0;
+		current_FAT = next_idx;
 		// cur_disk.data_blks[cur_disk.super.data_blk_idx + index];
 		// cur_disk.fat_blks->entries[index];
 	}	
-
+	printf("Got passed emptying fat \n");
 	/* Free allocated data blocks, if any */
 	return 0;
 }
@@ -385,7 +389,7 @@ int fs_open(const char *filename)
 {
 	/* Initialize and return file descriptor */
 	// this will be used for reading/writing operations, changing the file offset, etc.
-	/* Can open same filee multiple times */
+	/* Can open same file multiple times */
 	/* Contains the file's offset (initially 0) */
 
 	if (block_disk_count() == -1 || fd_count == FS_OPEN_MAX_COUNT) return -1;
