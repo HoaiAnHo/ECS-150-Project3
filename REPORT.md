@@ -37,6 +37,10 @@ specifically as the limit to the amount of possible open fds. Upon the first
 initialization, every index in the array contains NULL, which designates the
 fd entry as empty and unopened. The value in fd that we return in fs_open, is 
 the index number where a particular file descriptor we opened is located in
-the array. If the user returns a certain fd in later functions like .
+the array. If the user returns a certain fd in later functions like fs_seek, 
+we use fd to index into the assigned location in the array, and grab whatever
+member values are necessary for the operation. Running fs_close will replace
+the given fd index with NULL, which deems it "closed"
 
 # Phase 4: Reading/Writing Files
+We used a bounce buffer as described in class.
