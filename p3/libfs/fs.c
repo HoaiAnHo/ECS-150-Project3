@@ -147,6 +147,23 @@ int file_exist(const char *filename)
 }
 
 // helper functions for phase 3
+void print_fd_table(void)
+{
+	printf("File Descriptor Table:\n");
+	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++)
+	{
+		if(file_desc[i].status)
+		{
+			// index: filename: [filename] | offset: [offset]
+			printf("%d: filename: %s | offset: %d\n", i, file_desc[i].filename, file_desc[i].offset);
+		}
+		else
+		{
+			// index: open
+			printf("%d: open\n", i);
+		}
+	}
+}
 
 // helper functions for phase 4
 int data_blk_index()
@@ -323,7 +340,6 @@ int fs_create(const char *filename)
 
 int fs_delete(const char *filename)
 {
-	printf("fs_delete called \n");
 	/* Delete an existing file */
 	// file's entry must be emptied
 	// all data blocks containing the file's contents must be freed in the FAT
@@ -343,7 +359,6 @@ int fs_delete(const char *filename)
 			break;
 		}
 	}
-	printf("Got passed emptying root entry \n");
 	// 3) for each data block in the file, free the FAT entry/data blocks
 	int current_FAT = first_FAT;
 
@@ -357,7 +372,6 @@ int fs_delete(const char *filename)
 		// cur_disk.data_blks[cur_disk.super.data_blk_idx + index];
 		// cur_disk.fat_blks->entries[index];
 	}	
-	printf("Got passed emptying fat \n");
 	/* Free allocated data blocks, if any */
 	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 	return 0;
@@ -392,19 +406,30 @@ int fs_open(const char *filename)
 	/* Can open same file multiple times */
 	/* Contains the file's offset (initially 0) */
 
-	if (block_disk_count() == -1 || fd_count == FS_OPEN_MAX_COUNT) return -1;
-	if (!filename || file_exist(filename) == -1) return -1;
+	if (block_disk_count() == -1 || fd_count == FS_OPEN_MAX_COUNT)
+	{
+		printf("Disk not open or fd is full\n");
+		return -1;
+	}
+	if (!filename || file_exist(filename) == -1)
+	{
+		printf("Filename invalid or already exists\n");
+		return -1;
+	}
 
 	for (int i = 0; i < FS_OPEN_MAX_COUNT; i++)
 	{
-		if (!file_desc[i].status)
+		if (file_desc[i].status == 0) //Find empty spot in file descriptor table
 		{
+			//Look for the file in the root directory
 			for (int j = 0; j < 128; j++)
 			{
 				if (strcmp(cur_disk.root.entries[j].filename, filename) == 0)
 				{
+					file_desc[i].filename = malloc(sizeof(char)*16);
 					strcpy(file_desc[i].filename, filename);
 					file_desc[i].offset = 0;
+					file_desc[i].status = 1;
 					fd_count++;
 					return i;
 				}

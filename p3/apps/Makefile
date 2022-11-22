@@ -3,7 +3,8 @@ programs := \
 			test_fs.x \
 			mount_test.x \
 			info_test.x \
-			create_test.x
+			create_test.x \
+			open_test.x
 
 # File-system library
 FSLIB := libfs
