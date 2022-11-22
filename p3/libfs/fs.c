@@ -10,34 +10,34 @@
 
 /* Useful macros*/
 #define FAT_ENTRIES 2048;
-#define FAT_EOC 0xffff;
+//#define FAT_EOC 0xffff;
 
 /* Structs */
 
 // very first block of the disk, contains information about filesystem
 struct super_block{
-	int64_t signature;  // 8 bytes, signature must be equal to "ECS150FS"
-	int16_t total_blks; // 2 bytes
-	int16_t root_dir_idx;  // 2 bytes
-	int16_t data_blk_idx; // 2 bytes
-	int16_t total_data_blks; // 2 bytes
-	int8_t fat_blks; // 1 bytes
-	int8_t padding[4079]; // 4079 bytes
+	uint64_t signature;  // 8 bytes, signature must be equal to "ECS150FS"
+	uint16_t total_blks; // 2 bytes
+	uint16_t root_dir_idx;  // 2 bytes
+	uint16_t data_blk_idx; // 2 bytes
+	uint16_t total_data_blks; // 2 bytes
+	uint8_t fat_blks; // 1 bytes
+	uint8_t padding[4079]; // 4079 bytes
 }; 
 
 // linked list structure for FAT blocks
 struct fat_blocks{
-	int16_t entries[2048]; // 2 bytes
+	uint16_t entries[2048]; // 2 bytes
 };
 
 struct fat_entry{
-	int16_t entry;
+	uint16_t entry;
 };
 
 struct root_entry{
-	int8_t filename[16];
-	int32_t file_size;
-	int16_t first_data_idx;
+	char filename[16];
+	uint32_t file_size;
+	uint16_t first_data_idx;
 	int8_t padding[10];
 };
 
@@ -348,7 +348,7 @@ int fs_delete(const char *filename)
 	int current_FAT = first_FAT;
 
 	int next_idx = 1;
-	while (cur_disk.fat_entries[current_FAT].entry != -1)
+	while (cur_disk.fat_entries[current_FAT].entry != 0xffff)
 	{
 		//free(cur_disk.data_blks[index]); ???
 		next_idx = cur_disk.fat_entries[current_FAT].entry;
@@ -359,6 +359,7 @@ int fs_delete(const char *filename)
 	}	
 	printf("Got passed emptying fat \n");
 	/* Free allocated data blocks, if any */
+	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 	return 0;
 }
 
@@ -376,10 +377,6 @@ int fs_ls(void)
 			cur_disk.root.entries[i].filename, 
 			cur_disk.root.entries[i].file_size, 
 			cur_disk.root.entries[i].first_data_idx);
-		}
-		else
-		{
-			return 0;
 		}
 	}
 	return 0;
