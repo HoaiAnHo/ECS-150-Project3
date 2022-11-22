@@ -47,7 +47,7 @@ struct root_blocks{
 };
 
 struct data_blocks{
-	int16_t data[2048]; // 2 bytes
+	int8_t data[4048]; // 1 byte
 };
 
 struct disk_blocks{
@@ -146,6 +146,8 @@ int file_exist(const char *filename)
 	return 0; //not found
 }
 
+// helper functions for phase 3
+
 // helper functions for phase 4
 int data_blk_index()
 {
@@ -153,11 +155,12 @@ int data_blk_index()
 	return 0;
 }
 
-void alloc_data_blk()
+int alloc_data_blk()
 {
 	printf("you accessed the helper function!");
 	// allocate new data block and link it at the end of the data's block chain
 	// allocation must follow first-fit strategy (first block availible from the beginning of the FAT)
+	return 0;
 }
 
 /* TODO: Phase 1 - VOLUME MOUNTING */
@@ -173,10 +176,10 @@ int fs_mount(const char *diskname)
 	// added "#include <unistd.h>" to use O_RDWR
 	int disk_check = block_disk_open(diskname);
 	if (disk_check != 0)
-		{
-			printf("Unsuccessful disk open\n");
-			return -1;
-		}
+	{
+		printf("Unsuccessful disk open\n");
+		return -1;
+	}
 
 	/* Read the metadata (superblock, fat, root directory)*/
 	// 1) Superblock - 1st 8 bytes
@@ -403,7 +406,7 @@ int fs_open(const char *filename)
 			{
 				if (strcmp(cur_disk.root.entries[j].filename, filename) == 0)
 				{
-					file_desc[i].filename = *filename;
+					strcpy(file_desc[i].filename, filename);
 					file_desc[i].offset = 0;
 					fd_count++;
 					return i;
@@ -436,14 +439,15 @@ int fs_stat(int fd)
 int fs_lseek(int fd, size_t offset)
 {
 	/* move file's offset */
-	int cur_offset = file_desc[fd].offset;
-	file_desc[fd].offset = cur_offset + offset;
-	return 0;
+	file_desc[fd].offset = offset;
+	return file_desc[fd].offset;
 }
 
 /* TODO: Phase 4 - FILE READING/WRITING 
 - THIS IS THE MOST COMPLICATED PHASE */
+// reading from a file contained in the data blocks, write from those data blocks into the file
 
+// buf contains data, write onto data blocks (depending on where offset is)
 int fs_write(int fd, void *buf, size_t count)
 {
 	/* TODO: Phase 4 */
@@ -451,6 +455,7 @@ int fs_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
+// buffer gets data here
 int fs_read(int fd, void *buf, size_t count)
 {
 	/* TODO: Phase 4 */
