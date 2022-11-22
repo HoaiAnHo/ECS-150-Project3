@@ -149,17 +149,44 @@ int file_exist(const char *filename)
 // helper functions for phase 3
 
 // helper functions for phase 4
-int data_blk_index()
+// returns the index of the data block corresponding to the file's offset
+int data_blk_index(int fd)
 {
-	// returns the index of the data block corresponding to the file's offset
-	return 0;
+	for (int j = 0; j < 128; j++)
+	{
+		if (strcmp(cur_disk.root.entries[j].filename, file_desc[fd].filename) == 0)
+		{
+			// go through fat entries
+			uint16_t fat_idx = cur_disk.root.entries[j].first_data_idx;
+			int offset_check = file_desc[fd].offset;
+			if (cur_disk.fat_entries[fat_idx].entry == 0xffff)
+			{
+				return fat_idx;
+			}
+			while (offset_check > 4098)
+			{
+				fat_idx = cur_disk.fat_entries[fat_idx].entry;
+				offset_check -= 4098;
+			}
+			return fat_idx;
+		}
+	}
+	return -1;
 }
 
-int alloc_data_blk()
+// allocate new data block and link it at the end of the data's block chain, return new index
+int alloc_data_blk(int fd, uint16_t prev_idx)
 {
-	printf("you accessed the helper function!");
-	// allocate new data block and link it at the end of the data's block chain
 	// allocation must follow first-fit strategy (first block availible from the beginning of the FAT)
+	for (int i = 1; i < cur_disk.super.total_data_blks; i++)
+	{
+		if (cur_disk.fat_entries[i].entry == 0)
+		{
+			cur_disk.fat_entries[prev_idx].entry = cur_disk.fat_entries[i].entry;
+			cur_disk.fat_entries[i].entry = 0xffff;
+			return cur_disk.fat_entries[i].entry;
+		}
+	}
 	return 0;
 }
 
@@ -447,7 +474,8 @@ int fs_lseek(int fd, size_t offset)
 // buf contains data, write onto data blocks (depending on where offset is)
 int fs_write(int fd, void *buf, size_t count)
 {
-	/* TODO: Phase 4 */
+	if (block_disk_count() == -1) return -1;
+	if (file_desc[fd].status == 0 || !buf) return -1;
 	/* Read a certain number of bytes from a file */
 	return 0;
 }
@@ -455,8 +483,13 @@ int fs_write(int fd, void *buf, size_t count)
 // buffer gets data here
 int fs_read(int fd, void *buf, size_t count)
 {
-	/* TODO: Phase 4 */
+	if (block_disk_count() == -1) return -1;
+	if (file_desc[fd].status == 0 || !buf) return -1;
 	/* Write a certain number of bytes to a file */
+	// figure out all the data blocks associated with the file (index numbers)
+
+	// read all the data blocks
+	// figure out the beginning 
 
 	/* Extend file if necessary */
 	return 0;
