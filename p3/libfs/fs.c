@@ -246,7 +246,6 @@ int fs_mount(const char *diskname)
 
 	// 4) Data Blocks - from 1st data block index to the end
 	cur_disk.data_blks = malloc(sizeof(struct data_blocks) * cur_disk.super.total_data_blks);
-	struct data_blocks one_block_of_data;
 
 	for(int i = cur_disk.super.data_blk_idx; i < cur_disk.super.total_data_blks; i++)
 	{
@@ -477,11 +476,22 @@ int fs_close(int fd)
 
 int fs_stat(int fd)
 {
-	/* return file's size */
+	/* return file's size 
 	int offset = file_desc[fd].offset;
 	// corresponding to the specified file descriptor
 		// ex: to append to a file, call fs_lseek(fd, fs_stat(fd));
 	return offset;
+	*/
+	char *name = file_desc[fd].filename;
+	for(int i = 0; i < FS_FILE_MAX_COUNT; i++)
+	{
+		if(strcmp(name, cur_disk.root.entries[i].filename) == 0)
+		{
+			return cur_disk.root.entries[i].file_size;
+		}
+	}
+	printf("Problem with stat\n");
+	return -1;
 }
 
 // offset = current reading/writing position in the file
@@ -509,7 +519,7 @@ int fs_write(int fd, void *buf, size_t count)
 	if (file_desc[fd].offset % 4096 > 0) bounce_size += 1;
 	bounce_size *= 4096;
 	int offset_idx = data_blk_index(fd) - cur_disk.super.data_blk_idx;
-	char *bounce = malloc(sizeof(struct char) * bounce_size); 
+	char *bounce = malloc(sizeof(char) * bounce_size); 
 	int bounce_idx = 0;
 	int temp_count = count;
 
@@ -546,7 +556,7 @@ int fs_read(int fd, void *buf, size_t count)
 	if (file_desc[fd].offset % 4096 > 0) bounce_size += 1;
 	bounce_size *= 4096;
 	int offset_idx = data_blk_index(fd) - cur_disk.super.data_blk_idx;
-	char *bounce = malloc(sizeof(struct char) * bounce_size); 
+	char *bounce = malloc(sizeof(char) * bounce_size); 
 	int bounce_idx = 0;
 	int temp_count = count;
 

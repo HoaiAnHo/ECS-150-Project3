@@ -35,11 +35,15 @@ int main()
         printf("Could not open virtual disk \n");
     }
     
-	fs_info();
+	fs_ls();
 
 	int fd1 = fs_open("mount_test.c");
 	int fd2 = fs_open("info_test.c");
 	int fd3 = fs_open("test_fs.c");
+
+	printf("Size of fd1: %d \n", fs_stat(fd1));
+	printf("Size of fd2: %d \n", fs_stat(fd2));
+	printf("Size of fd3: %d \n", fs_stat(fd3));
 
 	fs_close(fd1);
 	fs_close(fd2);
