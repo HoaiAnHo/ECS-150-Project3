@@ -399,6 +399,10 @@ int fs_delete(const char *filename)
 		// cur_disk.fat_blks->entries[index];
 	}	
 	/* Free allocated data blocks, if any */
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		block_write(1+i, &cur_disk.fat_entries[i*2048]);
+	}
 	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 	return 0;
 }
