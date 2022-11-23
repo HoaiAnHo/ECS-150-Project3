@@ -583,7 +583,7 @@ int fs_write(int fd, void *buf, size_t count)
 /* Write a certain number of bytes to a file */
 int fs_read(int fd, void *buf, size_t count)
 {
-	printf("fs read called \n");
+	//printf("fs read called \n");
 	// error check
 	if (block_disk_count() == -1)
 	{
