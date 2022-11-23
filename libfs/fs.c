@@ -386,6 +386,7 @@ int fs_delete(const char *filename)
 		}
 	}
 	// 3) for each data block in the file, free the FAT entry/data blocks
+
 	int current_FAT = first_FAT;
 
 	int next_idx = 1;
@@ -397,7 +398,8 @@ int fs_delete(const char *filename)
 		current_FAT = next_idx;
 		// cur_disk.data_blks[cur_disk.super.data_blk_idx + index];
 		// cur_disk.fat_blks->entries[index];
-	}	
+	}
+	cur_disk.fat_entries[current_FAT].entry = 0;
 	/* Free allocated data blocks, if any */
 	for(int i = 0; i < cur_disk.super.fat_blks; i++)
 	{
