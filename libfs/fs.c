@@ -357,8 +357,13 @@ int fs_create(const char *filename)
 	strcpy(cur_disk.root.entries[free_root_location].filename, filename);
 	cur_disk.root.entries[free_root_location].file_size = 0;
 	cur_disk.root.entries[free_root_location].first_data_idx = data_block_index;
+	cur_disk.fat_entries[data_block_index].entry = 0xffff;
 
 	// Now we have to write this altered root block onto the virtual disk
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		block_write(1+i, &cur_disk.fat_entries[i*2048]);
+	}
 	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 
 	return 0;
