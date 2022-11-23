@@ -513,32 +513,64 @@ int fs_write(int fd, void *buf, size_t count)
 	if (block_disk_count() == -1) return -1;
 	if (file_desc[fd].status == 0 || !buf) return -1;
 
-	/* Read a certain number of bytes from a file */
-	// prepare bounce buffer and sizes
+	// prepare the size of the bounce buffer
 	int bounce_size = file_desc[fd].offset / 4096;
 	if (file_desc[fd].offset % 4096 > 0) bounce_size += 1;
 	bounce_size *= 4096;
-	int offset_idx = data_blk_index(fd) - cur_disk.super.data_blk_idx;
+
+	// prepare the index val used to iterate through a file's data blocks
+	int offset_idx = data_blk_index(fd);
+
+	// prepare the bounce buffer array
 	char *bounce = malloc(sizeof(char) * bounce_size); 
-	int bounce_idx = 0;
-	int temp_count = count;
+	int bounce_idx = 0; // to iterate through the bounce buffer in blocks
+	int temp_count = count; // to iterate through the count value
 
 	// read blocks into bounce buffer
 	while(temp_count > 0)
 	{
 		block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce[bounce_idx]);
-		bounce_idx *= 4096;
+		bounce_idx += 4096;
 		temp_count -= 4096;
 		offset_idx = cur_disk.fat_entries[offset_idx].entry;
 	}
 
+	// figure out point of offset
+	int startpoint =  file_desc[fd].offset % 4096;
+
 	// modify the bounce buffer using buf
+	bounce = bounce + startpoint;
+	memcpy(bounce, buf, count);
+	bounce = bounce - startpoint;
+
 
 	// loop and write bounce buffer into whole blocks
 		// if we go beyond the OG file size, use alloc_data_blk(fd, prev_idx);
+	offset_idx = data_blk_index(fd);
+	bounce_idx = bounce_idx / 4096; // amount of data blocks we're going through
+	int new_bounce_idx = 0;
+	char *mini_bounce = malloc(sizeof(char) * 4096);
+	while (bounce_idx > 0)
+	{
+		if (cur_disk.fat_entries[offset_idx].entry != 0xffff)
+		{
+			memcpy(mini_bounce, bounce[new_bounce_idx], 4096);
+			block_write(cur_disk.fat_entries[offset_idx].entry + cur_disk.super.data_blk_idx, mini_bounce);
+		}
+		else
+		{
+			alloc_data_blk(fd, offset_idx);
+			memcpy(mini_bounce, bounce[new_bounce_idx], 4096);
+			block_write(cur_disk.fat_entries[offset_idx].entry + cur_disk.super.data_blk_idx, mini_bounce);
+		}
+		bounce_idx--;
+		offset_idx = cur_disk.fat_entries[offset_idx].entry;
+		new_bounce_idx += 4096;
+	}
 
 	// cur_disk.root.entries file size modified
 	free(bounce);
+	free(mini_bounce);
 	file_desc[fd].offset += count;
 	return 0;
 }
@@ -551,20 +583,24 @@ int fs_read(int fd, void *buf, size_t count)
 	if (block_disk_count() == -1) return -1;
 	if (file_desc[fd].status == 0 || !buf) return -1;
 
-	// prepare bounce buffer and sizes
+	// prepare the size of the bounce buffer
 	int bounce_size = file_desc[fd].offset / 4096;
 	if (file_desc[fd].offset % 4096 > 0) bounce_size += 1;
 	bounce_size *= 4096;
-	int offset_idx = data_blk_index(fd) - cur_disk.super.data_blk_idx;
+
+	// prepare the index val used to iterate through a file's data blocks
+	int offset_idx = data_blk_index(fd);
+
+	// prepare the bounce buffer array
 	char *bounce = malloc(sizeof(char) * bounce_size); 
-	int bounce_idx = 0;
-	int temp_count = count;
+	int bounce_idx = 0; // to iterate through the bounce buffer in blocks
+	int temp_count = count; // to iterate through the count value
 
 	// read blocks into bounce buffer
 	while(temp_count > 0)
 	{
 		block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce[bounce_idx]);
-		bounce_idx *= 4096;
+		bounce_idx += 4096;
 		temp_count -= 4096;
 		offset_idx = cur_disk.fat_entries[offset_idx].entry;
 	}
@@ -575,6 +611,7 @@ int fs_read(int fd, void *buf, size_t count)
 	while (startpoint > 0)
 	{
 		bounce++;
+		startpoint--;
 	}
 
 	// copy final result to buffer
