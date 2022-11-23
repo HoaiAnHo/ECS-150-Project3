@@ -351,7 +351,7 @@ int fs_create(const char *filename)
 	}
 
 	//Calculate data block index
-	int data_block_index = free_fat_location;
+	//int data_block_index = free_fat_location;
 
 	//Set all information to current root entry
 	strcpy(cur_disk.root.entries[free_root_location].filename, filename);
@@ -392,6 +392,11 @@ int fs_delete(const char *filename)
 	// 3) for each data block in the file, free the FAT entry/data blocks
 
 	int current_FAT = first_FAT;
+	if (current_FAT == 0xffff)
+	{
+		block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
+		return 0;
+	}
 
 	int next_idx = 1;
 	while (cur_disk.fat_entries[current_FAT].entry != 0xffff)
