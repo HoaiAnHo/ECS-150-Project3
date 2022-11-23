@@ -79,7 +79,7 @@ int free_fats()
 {
 	int free_count = 0;
 	// read through fat blocks, look at fat entries
-	for (int i = 0; i < cur_disk.super.fat_blks*2048; i++)
+	for (int i = 0; i < cur_disk.super.total_data_blks; i++)
 	{
 			if (cur_disk.fat_entries[i].entry == 0) //entry is assigned value
 			{
@@ -110,7 +110,7 @@ int free_roots()
 // Function to help find a free spot in the fat blocks
 int find_free_fat_spot()
 {
-	for(int i = 0; i < cur_disk.super.fat_blks*2048; i++)
+	for(int i = 0; i < cur_disk.super.total_data_blks; i++)
 	{
 		if(cur_disk.fat_entries[i].entry == 0)
 			return i;
