@@ -611,6 +611,11 @@ int fs_write(int fd, void *buf, size_t count)
 			break;
 		}
 	}
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		block_write(1+i, &cur_disk.fat_entries[i*2048]);
+	}
+	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
 	return count;
 }
 
