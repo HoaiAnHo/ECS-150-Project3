@@ -529,10 +529,8 @@ int fs_write(int fd, void *buf, size_t count)
 	if (block_disk_count() == -1) return -1;
 	if (file_desc[fd].status == 0 || !buf) return -1;
 
-	printf("before offset work\n");
 	// prepare the index val used to iterate through a file's data blocks
 	int offset_idx = data_blk_index(fd);
-	printf("offset index: %i\n", offset_idx);
 	if (offset_idx == -1)
 	{
 		// we have no fat entries or data blocks assigned to this new file
@@ -547,9 +545,7 @@ int fs_write(int fd, void *buf, size_t count)
 			}
 		}
 	}
-	printf("offset index: %i\n", offset_idx);
 
-	printf("before bounce and vars init\n");
 	// prepare bounce buffer (size of 1 block)
 	char *bounce = malloc(sizeof(char) * 4096); 
 
@@ -565,12 +561,9 @@ int fs_write(int fd, void *buf, size_t count)
 	{
 		startpoint = file_desc[fd].offset % 4096;
 	}
-	printf("modded_count %i, block_count %i, startpoint %i\n", modded_count, block_count, startpoint);
 
-	printf("before first block work\n");
 	// modify the bounce buffer using buf (first block)
 	block_read(offset_idx + cur_disk.super.data_blk_idx, bounce);
-	printf("%s\n", bounce); // bounce printing
 	bounce += startpoint;
 	if (count < 4096 - startpoint) memcpy(bounce, buf, count); // what if buf length is less than (4096 - startpoint)?
 	else memcpy(bounce, buf, 4096 - startpoint);
@@ -578,13 +571,10 @@ int fs_write(int fd, void *buf, size_t count)
 	modded_count -= startpoint;
 	buf += startpoint;
 	block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
-	// printf("%s", bounce); // bounce printing
 	
-	printf("before writing loop\n");
 	// loop and write in the next couple blocks
 	if (block_count > 0)
 	{
-		printf("enter writing loop\n");
 		while (modded_count > 0)
 		{
 			if (cur_disk.fat_entries[offset_idx].entry == 0xffff) alloc_data_blk(fd, offset_idx);
@@ -603,32 +593,25 @@ int fs_write(int fd, void *buf, size_t count)
 				modded_count -= 4096;
 				buf += 4096;
 			}
-			// printf("%s", bounce); // bounce printing
 			block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
 		}
 	}
 
-	printf("before last work and root\n");
 	free(bounce);
 	file_desc[fd].offset += count;
-	printf("offset: %i\n", file_desc[fd].offset);
 	// cur_disk.root.entries file size modified
-	printf("before loop enter\n");
 	for (int i = 0; i < 128; i++)
 	{
 		if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
 		{
-			printf("enter first if\n");
 			if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
 			{
-				printf("enter 2nd if\n");
 				cur_disk.root.entries[i].file_size = file_desc[fd].offset;
 			}
-			// printf("filesize: %i", cur_disk.root.entries[i].file_size);
 			break;
 		}
 	}
-	return 0;
+	return count;
 }
 
 // buffer gets data here
