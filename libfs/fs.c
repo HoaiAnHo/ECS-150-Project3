@@ -536,6 +536,12 @@ int fs_write(int fd, void *buf, size_t count)
 	if (block_disk_count() == -1) return -1;
 	if (file_desc[fd].status == 0 || !buf) return -1;
 
+	//If there is no data to write
+	if(count == 0)
+	{
+		return count;
+	}
+
 	// prepare the index val used to iterate through a file's data blocks
 	int offset_idx = data_blk_index(fd);
 	if (offset_idx == -1)
