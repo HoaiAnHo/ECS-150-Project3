@@ -651,11 +651,11 @@ int fs_read(int fd, void *buf, size_t count)
 	int bounce_idx = 0; // to iterate through the bounce buffer in blocks
 	int temp_count = count; // to iterate through the count value
 	// read blocks into bounce buffer
-
+	printf("First Block\n");
 	//First block, could be a sliver
 	int starting_point = file_desc[fd].offset % 4096;
 	int bytes_to_write = 0;
-	block_read(data_idx, &bounce_block); //read entire block to bounce block
+	block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block); //read entire block to bounce block
 	
 	while(starting_point > 0)
 	{
@@ -663,46 +663,47 @@ int fs_read(int fd, void *buf, size_t count)
 		bounce_block++;
 	}
 	bytes_to_write = 4096 - starting_point;
-	 //Check if this get all the data that needs to be written
+	 //Check if this gets all the data that needs to be written
 	if(bytes_to_write > count)
 	{
 		bytes_to_write = count;
 	}
 
-	memcpy(buf, bounce, bytes_to_write);
+	memcpy(buf, bounce_block, bytes_to_write);
 	buf += bytes_to_write;
 	block_num--;
 	data_idx = cur_disk.fat_entries[data_idx].entry; //skip to next data block
 	bytes_written = bytes_to_write;
 
 	//Now we handle the middle blocks of the file
+	printf("Middle part\n");
 	while(block_num - 1 > 0) 
 	{
 		//Each entire block is read in and copied to buf
-		block_read(data_idx, &bounce_block);
-		memcpy(buf, bounce, 4096);
+		block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block);
+		memcpy(buf, bounce_block, 4096);
 		buf += 4096;
 		data_idx = cur_disk.fat_entries[data_idx].entry;
 		bytes_written += 4096;
 		block_num--;
 	}
 	//Last block
+	printf("Last block\n");
 	if(block_num == 1)
 	{
 		bytes_to_write = count - bytes_written;
-		block_read(data_idx, &bounce_block);
-		memcpy(buf, bounce, bytes_to_write);
+		block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block);
+		memcpy(buf, bounce_block, bytes_to_write);
 		bytes_written += bytes_to_write;
 	}
 	int final_offset = file_desc[fd].offset += count;
 
 	if(final_offset > fs_stat(fd)) //if offset is bigger than file size
 	{
-		file_desc[fd].offset = fs_stat(fd);
+		final_offset = fs_stat(fd);
 	}
 	
-	file_desc[fd].offset += count;
-	//return file_desc[fd].offset;
+	file_desc[fd].offset = final_offset;
 	return bytes_written;
 
 }
