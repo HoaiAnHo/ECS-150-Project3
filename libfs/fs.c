@@ -555,18 +555,22 @@ int fs_write(int fd, void *buf, size_t count)
 	// if block_count == 1 or more, (loop works)
 
 	// figure out point of offset for the first block
-	int startpoint =  file_desc[fd].offset % 4096;
-	if (startpoint == 0) startpoint = 4096;
+	int startpoint = 0;
+	if (file_desc[fd].offset < 4096) startpoint = file_desc[fd].offset;
+	else
+	{
+		startpoint = file_desc[fd].offset % 4096;
+	}
 
 	// modify the bounce buffer using buf (first block)
-	block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+	block_read(offset_idx + cur_disk.super.data_blk_idx, bounce);
 	bounce += startpoint;
 	if (count < 4096 - startpoint) memcpy(bounce, buf, count); // what if buf length is less than (4096 - startpoint)?
 	else memcpy(bounce, buf, 4096 - startpoint);
-	block_write(offset_idx + cur_disk.super.data_blk_idx, &bounce);
 	bounce = bounce - startpoint;
 	modded_count -= startpoint;
 	buf += startpoint;
+	block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
 	
 	// loop and write in the next couple blocks
 	if (block_count > 0)
@@ -579,7 +583,7 @@ int fs_write(int fd, void *buf, size_t count)
 			// if last block could be a slice
 			if (modded_count < 4096)
 			{
-				block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+				block_read(offset_idx + cur_disk.super.data_blk_idx, bounce);
 				memcpy(bounce, buf, modded_count);
 				modded_count -= modded_count;
 			} 
@@ -589,7 +593,7 @@ int fs_write(int fd, void *buf, size_t count)
 				modded_count -= 4096;
 				buf += 4096;
 			}
-			block_write(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+			block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
 		}
 	}
 
@@ -597,17 +601,17 @@ int fs_write(int fd, void *buf, size_t count)
 	file_desc[fd].offset += count;
 	// cur_disk.root.entries file size modified
 	for (int i = 0; i < 128; i++)
+	{
+		if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
 		{
-			if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
+			if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
 			{
-				if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
-				{
-					cur_disk.root.entries[i].file_size = file_desc[fd].offset;
-				}
-				break;
+				cur_disk.root.entries[i].file_size = file_desc[fd].offset;
 			}
+			break;
 		}
-	return 0;
+	}
+	return count;
 }
 
 // buffer gets data here
