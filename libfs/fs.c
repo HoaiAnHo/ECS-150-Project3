@@ -635,7 +635,6 @@ int fs_write(int fd, void *buf, size_t count)
 /* Write a certain number of bytes to a file */
 int fs_read(int fd, void *buf, size_t count)
 {
-	//printf("When read is called the file's offset is at: %d", file_desc[fd].offset);
 	printf("fs read called \n");
 	// error check
 	if (block_disk_count() == -1)
@@ -648,48 +647,83 @@ int fs_read(int fd, void *buf, size_t count)
 		printf("fd is open \n");
 		return -1;
 	}
-	//printf("Checkpoint 1 \n");
 	// prepare the size of the bounce buffer
-	int bounce_size = fs_stat(fd) / 4096;
+	int bytes_written = 0;
+	int block_num = fs_stat(fd) / 4096;
 	if (file_desc[fd].offset % 4096 > 0) 
 	{
-		bounce_size += 1;
+		block_num++;
 	}
-	bounce_size *= 4096;
-	//printf("Checkpoint 2\n");
+
 	// prepare the index val used to iterate through a file's data blocks
-	int offset_idx = data_blk_index(fd);
+	int data_idx = data_blk_index(fd); //gets first data block
+
+	//If desired data is not in the first block of data
+	int skip_blocks = file_desc[fd].offset / 4096;
+
+	while(skip_blocks > 0) //keep skipping until we hit block with data we want to read from
+	{
+		block_num--;//Don't have to worry about these blocks
+		data_idx = cur_disk.fat_entries[data_idx].entry; //skip to next data block
+	}
 
 	// prepare the bounce buffer array
-	char *bounce = malloc(sizeof(char) * bounce_size); 
+	char *bounce_block = malloc(sizeof(char) * 4096); 
 	int bounce_idx = 0; // to iterate through the bounce buffer in blocks
 	int temp_count = count; // to iterate through the count value
-	//printf("Checkpoint 3\n");
 	// read blocks into bounce buffer
-	while(temp_count > 0)
+
+	//First block, could be a sliver
+	int starting_point = file_desc[fd].offset % 4096;
+	int bytes_to_write = 0;
+	block_read(data_idx, &bounce_block); //read entire block to bounce block
+	
+	while(starting_point > 0)
 	{
-		//printf("Block read part \n");
-		block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce[bounce_idx]);
-		bounce_idx += 4096;
-		temp_count -= 4096;
-		offset_idx = cur_disk.fat_entries[offset_idx].entry;
+		starting_point--;
+		bounce_block++;
 	}
-	//printf("Checkpoint 4\n");
-	// figure out point of offset
-	int startpoint =  file_desc[fd].offset % 4096;
-	// if needed, increment start of bounce buffer to startpoint position
-	while (startpoint > 0)
+	bytes_to_write = 4096 - starting_point;
+	 //Check if this get all the data that needs to be written
+	if(bytes_to_write > count)
 	{
-		bounce++;
-		startpoint--;
+		bytes_to_write = count;
 	}
-	//printf("Checkpoint 5\n");
-	// copy final result to buffer
-	//buf = malloc(count);
-	memcpy(buf, bounce, count);
-	//free(bounce);
+
+	memcpy(buf, bounce, bytes_to_write);
+	buf += bytes_to_write;
+	block_num--;
+	data_idx = cur_disk.fat_entries[data_idx].entry; //skip to next data block
+	bytes_written = bytes_to_write;
+
+	//Now we handle the middle blocks of the file
+	while(block_num - 1 > 0) 
+	{
+		//Each entire block is read in and copied to buf
+		block_read(data_idx, &bounce_block);
+		memcpy(buf, bounce, 4096);
+		buf += 4096;
+		data_idx = cur_disk.fat_entries[data_idx].entry;
+		bytes_written += 4096;
+		block_num--;
+	}
+	//Last block
+	if(block_num == 1)
+	{
+		bytes_to_write = count - bytes_written;
+		block_read(data_idx, &bounce_block);
+		memcpy(buf, bounce, bytes_to_write);
+		bytes_written += bytes_to_write;
+	}
+	int final_offset = file_desc[fd].offset += count;
+
+	if(final_offset > fs_stat(fd)) //if offset is bigger than file size
+	{
+		file_desc[fd].offset = fs_stat(fd);
+	}
+	
 	file_desc[fd].offset += count;
-	//printf("Ended\n");
 	//return file_desc[fd].offset;
-	return count;
+	return bytes_written;
+
 }
