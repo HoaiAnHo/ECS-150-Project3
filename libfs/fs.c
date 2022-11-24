@@ -175,6 +175,7 @@ int data_blk_index(int fd)
 		{
 			// go through fat entries
 			uint16_t fat_idx = cur_disk.root.entries[j].first_data_idx;
+			if (fat_idx == 0xffff) return -1; // this means file is new, unwritten and pointing to nothing
 			int offset_check = file_desc[fd].offset;
 			if (cur_disk.fat_entries[fat_idx].entry == 0xffff)
 			{
@@ -535,6 +536,20 @@ int fs_write(int fd, void *buf, size_t count)
 
 	// prepare the index val used to iterate through a file's data blocks
 	int offset_idx = data_blk_index(fd);
+	if (offset_idx == -1)
+	{
+		// we have no fat entries or data blocks assigned to this new file
+		for (int i = 0; i < 128; i++)
+		{
+			if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
+			{
+				// give a 1st fat entry/data block index to root entry --> FAT_EOC
+				cur_disk.root.entries[i].first_data_idx = find_free_fat_spot();
+				cur_disk.fat_entries[cur_disk.root.entries[i].first_data_idx].entry = 0xffff;
+			}
+		}
+		
+	}
 
 	// prepare the bounce buffer array
 	char *bounce = malloc(sizeof(char) * bounce_size); 
@@ -542,6 +557,7 @@ int fs_write(int fd, void *buf, size_t count)
 	int temp_count = count; // to iterate through the count value
 
 	// read blocks into bounce buffer
+	printf("read blocks into bounce buffer\n");
 	while(temp_count > 0)
 	{
 		block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce[bounce_idx]);
@@ -559,12 +575,13 @@ int fs_write(int fd, void *buf, size_t count)
 	bounce = bounce - startpoint;
 
 
-	// loop and write bounce buffer into whole blocks
-		// if we go beyond the OG file size, use alloc_data_blk(fd, prev_idx);
+	// loop and write bounce buffer's blocks into the whole data blocks we need to modify
 	offset_idx = data_blk_index(fd);
 	bounce_idx = bounce_idx / 4096; // amount of data blocks we're going through
 	int new_bounce_idx = 0;
-	char *mini_bounce = malloc(sizeof(char) * 4096);
+	printf("mini bounce malloc\n");
+	char *mini_bounce = malloc(sizeof(uint16_t) * 4096); // issue here
+	printf("write bounce buffer's blocks into the whole data blocks\n");
 	while (bounce_idx > 0)
 	{
 		if (cur_disk.fat_entries[offset_idx].entry != 0xffff)
@@ -574,6 +591,7 @@ int fs_write(int fd, void *buf, size_t count)
 		}
 		else
 		{
+			// if we go beyond the OG file size, use alloc_data_blk(fd, prev_idx);
 			alloc_data_blk(fd, offset_idx);
 			memcpy(mini_bounce, bounce[new_bounce_idx], 4096);
 			block_write(cur_disk.fat_entries[offset_idx].entry + cur_disk.super.data_blk_idx, mini_bounce);
@@ -595,7 +613,7 @@ int fs_write(int fd, void *buf, size_t count)
 int fs_read(int fd, void *buf, size_t count)
 {
 	//printf("When read is called the file's offset is at: %d", file_desc[fd].offset);
-	//printf("fs read called \n");
+	printf("fs read called \n");
 	// error check
 	if (block_disk_count() == -1)
 	{
