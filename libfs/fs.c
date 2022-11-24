@@ -593,9 +593,20 @@ int fs_write(int fd, void *buf, size_t count)
 		}
 	}
 
-	// cur_disk.root.entries file size modified
 	free(bounce);
 	file_desc[fd].offset += count;
+	// cur_disk.root.entries file size modified
+	for (int i = 0; i < 128; i++)
+		{
+			if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
+			{
+				if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
+				{
+					cur_disk.root.entries[i].file_size = file_desc[fd].offset;
+				}
+				break;
+			}
+		}
 	return 0;
 }
 
