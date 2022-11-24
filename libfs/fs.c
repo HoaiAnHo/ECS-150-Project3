@@ -555,18 +555,22 @@ int fs_write(int fd, void *buf, size_t count)
 	// if block_count == 1 or more, (loop works)
 
 	// figure out point of offset for the first block
-	int startpoint =  file_desc[fd].offset % 4096;
-	if (startpoint == 0) startpoint = 4096;
+	int startpoint = 0;
+	if (file_desc[fd].offset < 4096) startpoint = file_desc[fd].offset;
+	else
+	{
+		startpoint = file_desc[fd].offset % 4096;
+	}
 
 	// modify the bounce buffer using buf (first block)
-	block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+	block_read(offset_idx + cur_disk.super.data_blk_idx, bounce);
 	bounce += startpoint;
 	if (count < 4096 - startpoint) memcpy(bounce, buf, count); // what if buf length is less than (4096 - startpoint)?
 	else memcpy(bounce, buf, 4096 - startpoint);
-	block_write(offset_idx + cur_disk.super.data_blk_idx, &bounce);
 	bounce = bounce - startpoint;
 	modded_count -= startpoint;
 	buf += startpoint;
+	block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
 	
 	// loop and write in the next couple blocks
 	if (block_count > 0)
@@ -579,7 +583,7 @@ int fs_write(int fd, void *buf, size_t count)
 			// if last block could be a slice
 			if (modded_count < 4096)
 			{
-				block_read(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+				block_read(offset_idx + cur_disk.super.data_blk_idx, bounce);
 				memcpy(bounce, buf, modded_count);
 				modded_count -= modded_count;
 			} 
@@ -589,7 +593,7 @@ int fs_write(int fd, void *buf, size_t count)
 				modded_count -= 4096;
 				buf += 4096;
 			}
-			block_write(offset_idx + cur_disk.super.data_blk_idx, &bounce);
+			block_write(offset_idx + cur_disk.super.data_blk_idx, bounce);
 		}
 	}
 
@@ -597,17 +601,22 @@ int fs_write(int fd, void *buf, size_t count)
 	file_desc[fd].offset += count;
 	// cur_disk.root.entries file size modified
 	for (int i = 0; i < 128; i++)
+	{
+		if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
 		{
-			if (strcmp(file_desc[fd].filename, cur_disk.root.entries[i].filename) == 0)
+			if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
 			{
-				if (file_desc[fd].offset > cur_disk.root.entries[i].file_size)
-				{
-					cur_disk.root.entries[i].file_size = file_desc[fd].offset;
-				}
-				break;
+				cur_disk.root.entries[i].file_size = file_desc[fd].offset;
 			}
+			break;
 		}
-	return 0;
+	}
+	for(int i = 0; i < cur_disk.super.fat_blks; i++)
+	{
+		block_write(1+i, &cur_disk.fat_entries[i*2048]);
+	}
+	block_write(cur_disk.super.root_dir_idx, &cur_disk.root);
+	return count;
 }
 
 // buffer gets data here
@@ -646,22 +655,20 @@ int fs_read(int fd, void *buf, size_t count)
 		data_idx = cur_disk.fat_entries[data_idx].entry; //skip to next data block
 	}
 
-	printf("First data block we read is: %d\n", data_idx);
-	printf("First block access we make is: %d\n", data_idx + cur_disk.super.data_blk_idx);
 	// prepare the bounce buffer array
 	char *bounce_block = malloc(sizeof(char) * 4096); 
 	int bounce_idx = 0; // to iterate through the bounce buffer in blocks
 	int temp_count = count; // to iterate through the count value
+
 	// read blocks into bounce buffer
-	printf("First Block\n");
 	//First block, could be a sliver
 	int starting_point = file_desc[fd].offset % 4096;
 	int bytes_to_write = 0;
-	block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block); //read entire block to bounce block
+	block_read(data_idx + cur_disk.super.data_blk_idx, bounce_block); //read entire block to bounce block
 	
 	bounce_block += starting_point;
 	bytes_to_write = 4096 - starting_point;
-	
+
 	 //Check if this gets all the data that needs to be written
 	if(bytes_to_write > count)
 	{
@@ -675,11 +682,10 @@ int fs_read(int fd, void *buf, size_t count)
 	bytes_written = bytes_to_write;
 
 	//Now we handle the middle blocks of the file
-	printf("Middle part\n");
 	while(block_num - 1 > 0) 
 	{
 		//Each entire block is read in and copied to buf
-		block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block);
+		block_read(data_idx + cur_disk.super.data_blk_idx, bounce_block);
 		memcpy(buf, bounce_block, 4096);
 		buf += 4096;
 		data_idx = cur_disk.fat_entries[data_idx].entry;
@@ -687,11 +693,10 @@ int fs_read(int fd, void *buf, size_t count)
 		block_num--;
 	}
 	//Last block
-	printf("Last block\n");
 	if(block_num == 1)
 	{
 		bytes_to_write = count - bytes_written;
-		block_read(data_idx + cur_disk.super.data_blk_idx, &bounce_block);
+		block_read(data_idx + cur_disk.super.data_blk_idx, bounce_block);
 		memcpy(buf, bounce_block, bytes_to_write);
 		bytes_written += bytes_to_write;
 	}
