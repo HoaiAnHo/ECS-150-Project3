@@ -498,6 +498,9 @@ int fs_stat(int fd)
 		// ex: to append to a file, call fs_lseek(fd, fs_stat(fd));
 	return offset;
 	*/
+	if (block_disk_count() == -1) return -1;
+	if (file_desc[fd].status == 0) return -1;
+
 	char *name = file_desc[fd].filename;
 	for(int i = 0; i < FS_FILE_MAX_COUNT; i++)
 	{
@@ -514,6 +517,10 @@ int fs_stat(int fd)
 int fs_lseek(int fd, size_t offset)
 {
 	/* move file's offset */
+	if (block_disk_count() == -1) return -1;
+	if (file_desc[fd].status == 0) return -1;
+	if (fs_stat(fd) < offset) return -1;
+	
 	file_desc[fd].offset = offset;
 	return file_desc[fd].offset;
 }
