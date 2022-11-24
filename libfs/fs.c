@@ -637,7 +637,7 @@ int fs_read(int fd, void *buf, size_t count)
 		printf("fs_read disk not open \n");
 		return -1;
 	}
-	if (file_desc[fd].status == 0)// || !buf) 
+	if (file_desc[fd].status == 0 || !buf) 
 	{
 		printf("fd is open \n");
 		return -1;
